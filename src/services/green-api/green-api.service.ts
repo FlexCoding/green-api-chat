@@ -41,10 +41,10 @@ const customQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError>
   let minutes = minutesToRefetch ?? 3;
 
   if (!currentChats?.length) {
-    minutes = getIsMiniVersion(type) ? 1440 : 20160;
+    minutes = getIsMiniVersion(type) ? 1440 : 2880;
 
     if (type === 'partner-iframe') {
-      minutes = 12080;
+      minutes = 2880;
     }
   }
 

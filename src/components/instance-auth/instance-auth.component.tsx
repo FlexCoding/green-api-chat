@@ -94,7 +94,7 @@ export const AuthInstance = () => {
           sessionId: selectedInstance.sessionId,
           orgId: selectedInstance.orgId,
           allMessages: true,
-          minutesToRefetch: 26300,
+          minutesToRefetch: 2880,
         }).unwrap();
 
         if (Array.isArray(result) && result.length > 0) {
