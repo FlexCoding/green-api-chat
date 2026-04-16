@@ -23,8 +23,10 @@ const ChatList: FC = () => {
 
   const { t } = useTranslation();
 
+  const [historyMinutes, setHistoryMinutes] = useState<number | undefined>(undefined);
+
   const { data, isLoading, error } = useLastMessagesQuery(
-    { ...instanceCredentials, allMessages: true },
+    { ...instanceCredentials, allMessages: true, minutesToRefetch: historyMinutes },
     {
       skipPollingIfUnfocused: true,
       pollingInterval: isMiniVersion ? 17000 : 15000,
@@ -38,6 +40,8 @@ const ChatList: FC = () => {
   const [page, setPage] = useState(1);
   const [contactsPage, setContactsPage] = useState(1);
   const [messagesPage, setMessagesPage] = useState(1);
+
+  const MAX_HISTORY_MINUTES = 129600; // 90 days
 
   const limit = isMiniVersion ? 5 : matchMedia ? 16 : 12;
 
@@ -99,6 +103,13 @@ const ChatList: FC = () => {
         } else {
           if (lastMessages.length > page * limit) {
             scrollTimer = setTimeout(() => setPage((prev) => prev + 1), 500);
+          } else {
+            // Reached the end of locally-loaded chats — try fetching a larger history window.
+            const current = historyMinutes ?? 2880;
+            const next = Math.min(current * 2, MAX_HISTORY_MINUTES);
+            if (next > current) {
+              scrollTimer = setTimeout(() => setHistoryMinutes(next), 500);
+            }
           }
         }
       }
@@ -114,6 +125,7 @@ const ChatList: FC = () => {
     messagesPage,
     page,
     showResults,
+    historyMinutes,
   ]);
 
   if (!instanceCredentials?.idInstance ) {

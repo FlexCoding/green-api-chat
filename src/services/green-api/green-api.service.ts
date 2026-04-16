@@ -46,6 +46,11 @@ const customQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError>
     if (type === 'partner-iframe') {
       minutes = 2880;
     }
+
+    // Caller can request a larger history window (progressive load-more on scroll).
+    if (minutesToRefetch !== undefined && minutesToRefetch > minutes) {
+      minutes = minutesToRefetch;
+    }
   }
 
   if (!currentChats && getIsMiniVersion(type) && attemptIdToGetChats < 6) {
