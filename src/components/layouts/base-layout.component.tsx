@@ -1,6 +1,6 @@
 import { FC, useEffect, useLayoutEffect, useState } from 'react';
 
-import { Layout, message } from 'antd';
+import { Layout, message, Modal } from 'antd';
 import i18n from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -18,6 +18,7 @@ import {
   useLazyGetGreenCredentialsQuery,
   useLazyGetGroupDataQuery,
 } from 'services/green-api/endpoints';
+import { setMiddlewareGroupKey } from 'services/green-api/green-api.service';
 import { selectMiniVersion, selectType } from 'store/slices/chat.slice';
 import { selectInstance, selectInstanceList } from 'store/slices/instances.slice';
 import { selectUser } from 'store/slices/user.slice';
@@ -299,6 +300,8 @@ const BaseLayout: FC = () => {
       const sessionId = searchParams.get('sessionId');
       const orgId = searchParams.get('orgId');
       const ownerId = searchParams.get('ownerId');
+      // Group routing: the key rides on every middleware request from here on.
+      setMiddlewareGroupKey(searchParams.get('groupKey'));
 
       if (!instanceUrl || !sessionId || !orgId || !ownerId) return;
 
@@ -315,6 +318,18 @@ const BaseLayout: FC = () => {
         });
 
         if (credentialsError || !credentials) {
+          const err = credentialsError as { status?: number; data?: { error?: string } } | undefined;
+          if (err?.status === 403 && err?.data?.error === 'NO_GROUP') {
+            // Multi-number org and this user belongs to no WhatsApp group —
+            // deliberate block (never guess a number), persistent message.
+            Modal.error({
+              title: t('NO_GROUP_TITLE'),
+              content: t('NO_GROUP_ERROR'),
+              okButtonProps: { style: { display: 'none' } },
+              closable: false,
+            });
+            return;
+          }
           message.error(t('FETCH_ERROR'));
           return;
         }

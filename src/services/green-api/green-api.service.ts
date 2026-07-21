@@ -11,10 +11,32 @@ import { RootState } from 'store';
 import { InstanceInterface, MessageInterface } from 'types';
 import { getIsMiniVersion, getLastChats, updateLastChats, getAllChats } from 'utils';
 
-const baseQuery = fetchBaseQuery({
+const rawBaseQuery = fetchBaseQuery({
   baseUrl: '',
   timeout: 70000,
 });
+
+// The WhatsApp group this session belongs to (from the embedding URL). The
+// middleware routes each group to its own WhatsApp number, so the key must ride
+// on EVERY middleware request — injected here centrally instead of in each of
+// the dozens of endpoint definitions.
+let middlewareGroupKey: string | null = null;
+
+export const setMiddlewareGroupKey = (groupKey: string | null) => {
+  middlewareGroupKey = groupKey;
+};
+
+const withGroupKey = (args: string | FetchArgs): string | FetchArgs => {
+  if (typeof args === 'string' || !middlewareGroupKey) return args;
+  if (!args.url || !args.url.startsWith(MIDDLEWARE_URL)) return args;
+  return { ...args, params: { ...(args.params ?? {}), groupKey: middlewareGroupKey } };
+};
+
+const baseQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> = (
+  args,
+  api,
+  extraOptions
+) => rawBaseQuery(withGroupKey(args), api, extraOptions);
 
 let attemptIdToGetChats = 1;
 
