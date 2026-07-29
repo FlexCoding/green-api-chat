@@ -191,6 +191,9 @@ const ChatListItem: FC<ContactListItemProps> = ({
           title={
             <h6
             className="text-overflow message-signerData"
+              // dir="auto" isolates numeric-only names (raw chatIds) so RTL layout
+              // doesn't visually glue them onto the adjacent date.
+              dir="auto"
               style={{ fontSize: 14, maxWidth: 280 }}
             >
               {isWhatsAppOfficialChat(lastMessage.chatId) ? 'WhatsApp' : chatName}
