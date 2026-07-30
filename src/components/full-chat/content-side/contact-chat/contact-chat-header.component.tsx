@@ -67,7 +67,9 @@ const ContactChatHeader: FC = () => {
 
       <Space>
         {!isOfficial && activeChat.chatId?.includes('@c') && (
-          <span>{activeChat.chatId?.replace(/\@.*$/, '')}</span>
+          <span className="chat-header-phone" dir="ltr">
+            {activeChat.chatId?.replace(/\@.*$/, '')}
+          </span>
         )}
         {type !== 'one-chat-only' && (
           <a>

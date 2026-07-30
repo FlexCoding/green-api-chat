@@ -225,7 +225,10 @@ const ChatList: FC = () => {
               />
             )}
             loading={{
-              spinning: isLoading || (!data?.length && !isMiniVersion),
+              // Spin only while a fetch is actually in flight. `!data?.length` kept
+              // the spinner on FOREVER in a fresh org with zero chats, hiding the
+              // EMPTY_CHAT_LIST empty-state below.
+              spinning: isLoading || data === undefined,
               className: `${isMiniVersion ? 'min-height-460' : 'height-720'}`,
               size: 'large',
             }}

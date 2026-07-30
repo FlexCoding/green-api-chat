@@ -233,6 +233,23 @@ html {
   cursor: pointer;
 }
 
+// The header (avatar + name + phone + icons) must never force the whole
+// component into horizontal scroll — in narrow embeds (utility bar) the raw
+// phone is the least important element, so it collapses first.
+.contact-chat-header {
+  overflow: hidden;
+}
+
+.chat-header-phone {
+  white-space: nowrap;
+}
+
+@media (max-width: 540px) {
+  .chat-header-phone {
+    display: none;
+  }
+}
+
 .send-mode-select-btn {
   font-size: 23px;
   color: var(--primary-color);
