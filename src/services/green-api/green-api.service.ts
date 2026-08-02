@@ -80,25 +80,53 @@ const customQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError>
     attemptIdToGetChats++;
   }
 
-  const [lastIncomingMessages, lastOutgoingMessages] = await Promise.all([
-    baseQuery(
-      {
-        // url: `/lastIncomingMessages/${apiTokenInstance}`,
-        url: `${MIDDLEWARE_URL}/lastIncomingMessages`,
-        params: { minutes, orgId, instanceUrl, sessionId, ownerId },
-      },
-      { ...api, endpoint: 'lastIncomingMessages' },
-      extraOptions
-    ),
-    baseQuery(
-      {
-        url: `${MIDDLEWARE_URL}/lastOutgoingMessages`,
-        params: { minutes, orgId, instanceUrl, sessionId, ownerId },
-      },
-      { ...api, endpoint: 'lastOutgoingMessages' },
-      extraOptions
-    ),
-  ]);
+  const fetchWindow = (windowMinutes: number) =>
+    Promise.all([
+      baseQuery(
+        {
+          url: `${MIDDLEWARE_URL}/lastIncomingMessages`,
+          params: { minutes: windowMinutes, orgId, instanceUrl, sessionId, ownerId },
+        },
+        { ...api, endpoint: 'lastIncomingMessages' },
+        extraOptions
+      ),
+      baseQuery(
+        {
+          url: `${MIDDLEWARE_URL}/lastOutgoingMessages`,
+          params: { minutes: windowMinutes, orgId, instanceUrl, sessionId, ownerId },
+        },
+        { ...api, endpoint: 'lastOutgoingMessages' },
+        extraOptions
+      ),
+    ]);
+
+  let [lastIncomingMessages, lastOutgoingMessages] = await fetchWindow(minutes);
+
+  // Adaptive history window: a busy org fills the list from the initial short
+  // window and pays nothing extra; a quiet/new org (fewer chats than the
+  // threshold) automatically widens to a week, then a month, so reps see
+  // their past conversations instead of an empty list they cannot even
+  // scroll-to-load-more from. Only the initial load escalates — refresh
+  // cycles keep their short window.
+  const MIN_CHATS_FOR_LIST = 5;
+  const WINDOW_ESCALATION_MINUTES = [10080, 43200]; // 7 days, 30 days
+  if (!currentChats?.length) {
+    for (const widerWindow of WINDOW_ESCALATION_MINUTES) {
+      if (widerWindow <= minutes) continue;
+      if (lastIncomingMessages.error || lastOutgoingMessages.error) break;
+      const uniqueChatIds = new Set(
+        [
+          ...((lastIncomingMessages.data as MessageInterface[]) ?? []),
+          ...((lastOutgoingMessages.data as MessageInterface[]) ?? []),
+        ]
+          .map((message) => message?.chatId)
+          .filter(Boolean)
+      );
+      if (uniqueChatIds.size >= MIN_CHATS_FOR_LIST) break;
+      minutes = widerWindow;
+      [lastIncomingMessages, lastOutgoingMessages] = await fetchWindow(widerWindow);
+    }
+  }
 
   if (lastIncomingMessages.data && lastOutgoingMessages.data) {
     if (allMessages) {
