@@ -9,6 +9,7 @@
   "METHOD_QUOTA_EXCEEDED": "The number of uses of the method has been exceeded. Upgrade to Business plan or use another instance",
   "TOO_MANY_REQUESTS_ERROR": "Too many requests",
   "FETCH_ERROR": "Check that the entered data is correct",
+  "RATE_LIMIT_RETRY": "Temporary load — retrying in a moment...",
   "NO_GROUP_TITLE": "No WhatsApp group assignment",
   "NO_GROUP_ERROR": "You are not assigned to a WhatsApp group. Please contact your system administrator.",
   "UNKNOWN_ERROR": "Something went wrong, please try again",

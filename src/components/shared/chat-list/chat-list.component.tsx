@@ -25,7 +25,7 @@ const ChatList: FC = () => {
 
   const [historyMinutes, setHistoryMinutes] = useState<number | undefined>(undefined);
 
-  const { data, isLoading, error } = useLastMessagesQuery(
+  const { data, isLoading, error, refetch } = useLastMessagesQuery(
     { ...instanceCredentials, allMessages: true, minutesToRefetch: historyMinutes },
     {
       skipPollingIfUnfocused: true,
@@ -33,6 +33,23 @@ const ChatList: FC = () => {
       skip: !instanceCredentials?.idInstance ,
     }
   );
+
+  // Rate-limit (429) recovery. Polling alone doesn't save us here: with
+  // skipPollingIfUnfocused the embedded panel is often "unfocused" so a single
+  // 429 used to freeze on a bare spinner forever. Explicit retry with backoff
+  // runs regardless of focus.
+  const retryAttemptRef = useRef(0);
+  useEffect(() => {
+    if (error && 'status' in error && error.status === 429) {
+      const delay = Math.min(5000 * 2 ** retryAttemptRef.current, 30000);
+      retryAttemptRef.current += 1;
+      const timer = setTimeout(() => refetch(), delay);
+      return () => clearTimeout(timer);
+    }
+    if (!error) {
+      retryAttemptRef.current = 0;
+    }
+  }, [error, refetch]);
 
   const chatListRef = useRef<HTMLDivElement | null>(null);
 
@@ -144,8 +161,11 @@ const ChatList: FC = () => {
           className={`contact-list ${isMiniVersion ? 'min-height-460' : 'height-720'}`}
           align="center"
           justify="center"
+          vertical
+          gap={12}
         >
           <Spin size="large" />
+          <span style={{ color: '#888' }}>{t('RATE_LIMIT_RETRY')}</span>
         </Flex>
       );
     }
