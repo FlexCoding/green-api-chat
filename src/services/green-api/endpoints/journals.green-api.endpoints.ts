@@ -16,15 +16,12 @@ export const journalsGreenApiEndpoints = greenAPI.injectEndpoints({
         params: { instanceUrl, sessionId, orgId },
         body,
       }),
+      // Raw items, oldest first. Service items (reactions / delete / edit markers)
+      // are filtered in the chat view, so the cached length stays the raw length:
+      // a response shorter than the requested count = start of history (the
+      // middleware merges Green's window with the archive beyond it).
       transformResponse: (res: GetChatHistoryResponse) =>
-        res
-          .filter(
-            (msg) =>
-              msg.typeMessage !== 'reactionMessage' &&
-              msg.typeMessage !== 'deletedMessage' &&
-              msg.typeMessage !== 'editedMessage'
-          )
-          .reverse(),
+        Array.isArray(res) ? [...res].reverse() : [],
       providesTags: ['chatHistory'],
     }),
     lastIncomingMessages: builder.query<GetChatHistoryResponse, LastMessagesParametersInterface>({

@@ -1,6 +1,6 @@
 import { FC, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Alert, Button, Empty, Spin } from 'antd';
+import { Button, Empty, Spin } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import Message from './message/message.component';
@@ -79,11 +79,17 @@ const ChatView: FC = () => {
   );
 
   useEffect(() => {
+    setCount(50);
     setMessageCount(50);
   }, [activeChat]);
 
+  // A history shorter than what we asked for = both sources (Green + the
+  // middleware's archive) are exhausted.
+  const requestedCount = isMiniVersion ? 10 : count;
+  const hasMore = (messages?.length ?? 0) >= requestedCount;
+
   const handleLoadMore = () => {
-    if (count >= 200) return;
+    if (!hasMore) return;
 
     const element = chatViewRef.current;
     if (!element) return;
@@ -94,7 +100,7 @@ const ChatView: FC = () => {
     };
 
     setCount((prev) => {
-      const next = Math.min(prev + 20, 200);
+      const next = prev + 50;
       setMessageCount(next);
       return next;
     });
@@ -125,7 +131,14 @@ const ChatView: FC = () => {
   const formattedMessages = useMemo(() => {
     if (!messages) return [];
 
-    const allFormatted = formatMessages(messages, resolvedLanguage as LanguageLiteral);
+    const visible = messages.filter(
+      (msg) =>
+        msg.typeMessage !== 'reactionMessage' &&
+        msg.typeMessage !== 'deletedMessage' &&
+        msg.typeMessage !== 'editedMessage'
+    );
+
+    const allFormatted = formatMessages(visible, resolvedLanguage as LanguageLiteral);
 
     const pollUpdateMap = new Map<string, (typeof messages)[number]>();
 
@@ -190,16 +203,14 @@ const ChatView: FC = () => {
 
   return (
     <div className={`chat-view ${isMiniVersion ? '' : 'full'}`} ref={chatViewRef}>
-      {count < 200 ? (
+      {hasMore ? (
         <div style={{ textAlign: 'center', padding: '12px 0' }}>
           <Button onClick={handleLoadMore}>{t('LOAD_MORE_MESSAGES')}</Button>
         </div>
       ) : (
-        <Alert
-          style={{ textAlign: 'center' }}
-          message={t('CHAT_MESSAGE_LIMIT_REACHED_TITLE')}
-          type="warning"
-        />
+        <div style={{ textAlign: 'center', padding: '12px 0', opacity: 0.6 }}>
+          {t('CHAT_HISTORY_START')}
+        </div>
       )}
 
       <Spin size="large" style={{ visibility: loaderVisible ? 'initial' : 'hidden' }} />

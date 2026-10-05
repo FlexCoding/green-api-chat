@@ -151,6 +151,7 @@
   "ENTER_IMAGE_URL": "Введите ссылку на изображение",
   "CHAT_MESSAGE_LIMIT_REACHED_TITLE": "Достигнут лимит сообщений чата",
   "LOAD_MORE_MESSAGES": "Загрузить еще сообщения",
+  "CHAT_HISTORY_START": "Начало истории переписки",
   "UPDATE_AVATAR": "Обновить изображение группы",
   "LEAVE_GROUP": "Покинуть группу",
   "ADD_PARTICIPANT": "Добавить участника",

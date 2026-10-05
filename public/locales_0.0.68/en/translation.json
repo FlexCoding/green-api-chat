@@ -138,6 +138,7 @@
   "MESSAGE_PREVIEW": "Preview:",
   "CHAT_MESSAGE_LIMIT_REACHED_TITLE": "Chat message limit reached",
   "LOAD_MORE_MESSAGES": "Load more messages",
+  "CHAT_HISTORY_START": "Start of conversation history",
   "UPDATE_AVATAR": "Update group avatar",
   "LEAVE_GROUP": "Leave group",
   "ADD_PARTICIPANT": "Add participant",
