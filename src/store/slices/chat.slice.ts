@@ -1,8 +1,14 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+import { FULL_CHAT_HISTORY_COUNT } from 'configs';
 import { RootState } from 'store';
-import { ChatState } from 'types';
+import { instancesActions } from 'store/slices/instances.slice';
+import { ChatState, InstanceInterface, MessageInterface } from 'types';
 import { getIsMiniVersion } from 'utils';
+
+// Fork: no apiTokenInstance in the client — the org + instance identify the line.
+const getInstanceKey = ({ idInstance, orgId, instanceUrl }: InstanceInterface) =>
+  `${idInstance}:${orgId}:${instanceUrl}`;
 
 const initialState: ChatState = {
   activeChat: null,
@@ -10,12 +16,14 @@ const initialState: ChatState = {
   activeSendingMode: null,
   type: 'tab',
   isMiniVersion: getIsMiniVersion('tab'),
-  messageCount: 30,
+  messageCount: FULL_CHAT_HISTORY_COUNT,
   isContactInfoOpen: false,
   activeTemplate: null,
   templateMessagesLoading: false,
   searchQuery: '',
   replyMessage: null,
+  lastMessagesByChatId: {},
+  lastMessagesInstanceKey: null,
 };
 
 const chatSlice = createSlice({
@@ -69,6 +77,27 @@ const chatSlice = createSlice({
     setSearchQuery: (state, action: PayloadAction<string>) => {
       state.searchQuery = action.payload;
     },
+
+    setLastMessageByChatId: (
+      state,
+      action: PayloadAction<{ chatId: string; message: MessageInterface | null }>
+    ) => {
+      state.lastMessagesByChatId[action.payload.chatId] = action.payload.message;
+    },
+
+    clearLastMessagesByChatId: (state) => {
+      state.lastMessagesByChatId = {};
+    },
+  },
+  extraReducers: (builder) => {
+    builder.addCase(instancesActions.setSelectedInstance, (state, action) => {
+      const instanceKey = getInstanceKey(action.payload);
+
+      if (state.lastMessagesInstanceKey !== instanceKey) {
+        state.lastMessagesByChatId = {};
+        state.lastMessagesInstanceKey = instanceKey;
+      }
+    });
   },
 });
 
@@ -87,3 +116,5 @@ export const selectDescription = (state: RootState) => state.chatReducer.descrip
 export const selectBrandImgUrl = (state: RootState) => state.chatReducer.brandImgUrl;
 export const selectSearchQuery = (state: RootState) => state.chatReducer.searchQuery;
 export const selectReplyMessage = (state: RootState) => state.chatReducer.replyMessage;
+export const selectLastMessagesByChatId = (state: RootState) =>
+  state.chatReducer.lastMessagesByChatId;

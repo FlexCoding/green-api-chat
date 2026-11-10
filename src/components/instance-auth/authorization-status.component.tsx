@@ -1,7 +1,12 @@
 import { FC } from 'react';
+
 import { useTranslation } from 'react-i18next';
+
+import { useAppSelector } from 'hooks';
 import { useInstanceSettings } from 'hooks/use-instance-settings.hook';
+import { selectIsLastMessagesSyncingAfterAuthorization } from 'store/slices/instances.slice';
 import { StateInstanceEnum } from 'types';
+import { isAuthorizedInstanceState } from 'utils';
 
 interface Properties {
   style?: React.CSSProperties;
@@ -10,12 +15,15 @@ interface Properties {
 const AuthorizationStatus: FC<Properties> = ({ style }) => {
   const { t } = useTranslation();
   const { settings, isLoading } = useInstanceSettings();
+  const isLastMessagesSyncingAfterAuthorization = useAppSelector(
+    selectIsLastMessagesSyncingAfterAuthorization
+  );
 
   const state = settings?.stateInstance;
 
-  if (isLoading) return null;
+  if (isLoading && !isLastMessagesSyncingAfterAuthorization) return null;
 
-  const isAuthorized = state === StateInstanceEnum.Authorized;
+  const isAuthorized = isAuthorizedInstanceState(state) || isLastMessagesSyncingAfterAuthorization;
   const isSuspended = state === StateInstanceEnum.Suspended;
 
   let text = '';
@@ -27,7 +35,7 @@ const AuthorizationStatus: FC<Properties> = ({ style }) => {
     backgroundColor = 'var(--authorized-header-color)';
     color = 'var(--authorized-text-color)';
   } else if (isSuspended) {
-    text = 'Suspended';
+    text = t('SUSPENDED');
     backgroundColor = 'var(--suspended-header-bg)';
     color = 'var(--suspended-header-color)';
   } else {

@@ -55,6 +55,7 @@ iframeReference.current?.contentWindow?.postMessage(
       apiUrl: instanceData.apiUrl,
       mediaUrl: instanceData.mediaUrl,
       tariff: instanceData.tariff,
+      enableCalls: instanceData.enableCalls,
       locale: resolvedLanguage,
       theme: currentTheme,
       platform: platform,
@@ -81,6 +82,7 @@ iframeReference.current?.contentWindow?.postMessage(
 | `apiUrl`           | `string`              | Base API URL                                |
 | `mediaUrl`         | `string`              | Media upload URL                            |
 | `tariff`           | `TariffsEnum`         | Tariff plan (see below)                     |
+| `enableCalls`      | `boolean \| undefined` | Whether calls are available on the current tariff. When falsy, the mini-chat call button shows an upgrade notice instead of posting `openCalls` |
 | `locale`           | `string \| undefined` | Optional language code (e.g., `en`, `ru`)   |
 | `theme`            | `ThemesEnum`          | Theme mode (see below)                      |
 | `platform`         | `string`              | Platform ID (e.g., `web`, `android`, `ios`) |
@@ -129,12 +131,23 @@ http://localhost:5173/?idInstance=YOUR_ID&apiTokenInstance=YOUR_API_TOKEN&apiUrl
 
 #### Optional Customization Parameters
 
-| Parameter | Description                                              |
-|-----------|----------------------------------------------------------|
-| `lng`     | Language (`ru`, `en`, `he`)                              |
-| `dsc`     | Description text on home screen when no chat is selected |
-| `logo`    | Image/logo URL shown above the description               |
-| `chatId`  | If you need only one chat. In format XXXXXXXXXXX@c.us    |
+| Parameter | Description                                                                                                                  |
+|-----------|------------------------------------------------------------------------------------------------------------------------------|
+| `lng`     | Language (`ru`, `en`, `he`, `tr`)                                                                                            |
+| `dsc`     | Description text on home screen when no chat is selected                                                                     |
+| `logo`    | Image/logo URL shown above the description                                                                                   |
+| `chatId`  | If you need only one chat. In format XXXXXXXXXXX@c.us                                                                        |
+| `theme`   | Theme mode (see above)                                                                                                       |
+| `type`    | Hides some interface elements depending on the passed value. Values: 'mobile-mode', 'one-chat-only', 'tab', 'partner-iframe' |
+
+#### 'type' values description
+
+| Parameter        | Description                                                                   |
+|------------------|-------------------------------------------------------------------------------|
+| `tab`            | Default value. Renders every element of the interface                         |
+| `partner-iframe` | Hides instances list from aside menu                                          |
+| `one-chat-only`  | Renders only chat with chatId, if chatId is passed in query parameters in URL |
+| `mobile-mode`    | Hides aside menu and chat header                                              |
 
 ## 📄 License
 
@@ -199,6 +212,7 @@ iframeReference.current?.contentWindow?.postMessage(
       apiUrl: instanceData.apiUrl,
       mediaUrl: instanceData.mediaUrl,
       tariff: instanceData.tariff,
+      enableCalls: instanceData.enableCalls,
       locale: resolvedLanguage,
       theme: currentTheme,
       platform: platform,
@@ -225,6 +239,7 @@ iframeReference.current?.contentWindow?.postMessage(
 | `apiUrl`           | `string`              | Базовый URL API                                       |
 | `mediaUrl`         | `string`              | URL для загрузки медиа                                |
 | `tariff`           | `TariffsEnum`         | Тарифный план (см. ниже)                              |
+| `enableCalls`      | `boolean \| undefined` | Доступны ли звонки на текущем тарифе. Если не передано/false, кнопка звонка в mini-chat показывает окно с предложением перейти на другой тариф вместо отправки `openCalls` |
 | `locale`           | `string \| undefined` | Необязательный код языка (например, `en`, `ru`, `he`) |
 | `theme`            | `ThemesEnum`          | Тема интерфейса (см. ниже)                            |
 | `platform`         | `string`              | Платформа (`web`, `android`, `ios`)                   |
@@ -273,12 +288,23 @@ http://localhost:5173/?idInstance=YOUR_ID&apiTokenInstance=YOUR_API_TOKEN&apiUrl
 
 #### Необязательные параметры кастомизации
 
-| Параметр | Описание                                                        |
-|----------|-----------------------------------------------------------------|
-| `lng`    | Язык интерфейса (`ru`, `en`, `he`)                              |
-| `dsc`    | Описание, отображаемое на главной странице, когда чат не выбран |
-| `logo`   | Ссылка на изображение/логотип, отображаемое над описанием       |
-| `chatId` | Если вам нужен только один чат. Формат XXXXXXXXXXX@c.us         |
+| Параметр | Описание                                                                                                                              |
+|----------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `lng`    | Язык интерфейса (`ru`, `en`, `he`)                                                                                                    |
+| `dsc`    | Описание, отображаемое на главной странице, когда чат не выбран                                                                       |
+| `logo`   | Ссылка на изображение/логотип, отображаемое над описанием                                                                             |
+| `chatId` | Если вам нужен только один чат. Формат XXXXXXXXXXX@c.us                                                                               |
+| `theme`  | Тема интерфейса (см. выше)                                                                                                            |
+| `type`   | Скрывает элементы интерфейса в зависимости от переданного значения. Значения: 'mobile-mode', 'one-chat-only', 'tab', 'partner-iframe' |
+
+#### Описание значений параметра 'type'
+
+| Параметр         | Описание                                                                             |
+|------------------|--------------------------------------------------------------------------------------|
+| `tab`            | Значение по-умолчанию. Рендерит все элементы интерфейса                              |
+| `partner-iframe` | Скрывает список инстансев из бокового меню                                           |
+| `one-chat-only`  | Рендерит только чат с переданным chatId, если chatId передан в query параметры в URL |
+| `mobile-mode`    | Скрывает боковое меню and шапку чата                                                     
 
 ## 📄 Лицензия
 

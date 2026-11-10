@@ -1,5 +1,4 @@
 import { MIDDLEWARE_URL } from 'configs';
-
 import { greenAPI } from 'services/green-api/green-api.service';
 import {
   GetChatHistoryParametersInterface,
@@ -22,6 +21,16 @@ export const journalsGreenApiEndpoints = greenAPI.injectEndpoints({
       // middleware merges Green's window with the archive beyond it).
       transformResponse: (res: GetChatHistoryResponse) =>
         Array.isArray(res) ? [...res].reverse() : [],
+      providesTags: ['chatHistory'],
+    }),
+    // Get last message for chat list, we dont need to filter response
+    getChatLastMessage: builder.query<GetChatHistoryResponse, GetChatHistoryParametersInterface>({
+      query: ({ instanceUrl, sessionId, orgId, chatId, count }) => ({
+        url: `${MIDDLEWARE_URL}/getChatHistory`,
+        method: 'POST',
+        params: { instanceUrl, sessionId, orgId },
+        body: { chatId, count },
+      }),
       providesTags: ['chatHistory'],
     }),
     lastIncomingMessages: builder.query<GetChatHistoryResponse, LastMessagesParametersInterface>({

@@ -1,6 +1,10 @@
 import { MIDDLEWARE_URL } from 'configs';
+import { journalsGreenApiEndpoints } from 'services/green-api/endpoints/journals.green-api.endpoints';
 import { greenAPI } from 'services/green-api/green-api.service';
+import type { RootState } from 'store';
+import { chatActions, selectLastMessagesByChatId } from 'store/slices/chat.slice';
 import {
+  GetChatHistoryParametersInterface,
   GetTemplateByIdParametersInterface,
   GetTemplatesResponseInterface,
   InstanceInterface,
@@ -8,6 +12,7 @@ import {
   SendTemplateParameters,
   WabaTemplateResponseInterface,
 } from 'types';
+import { generateTempMessageId } from 'utils';
 
 export const wabaGreenApiEndpoints = greenAPI.injectEndpoints({
   endpoints: (builder) => ({
@@ -15,7 +20,6 @@ export const wabaGreenApiEndpoints = greenAPI.injectEndpoints({
       query: ({ idInstance, instanceUrl, sessionId, orgId }) => ({
         url: `${MIDDLEWARE_URL}/getTemplates`,
         params: { instanceUrl, sessionId, orgId },
-
       }),
       providesTags: (result, __, argument) =>
         result
@@ -48,6 +52,85 @@ export const wabaGreenApiEndpoints = greenAPI.injectEndpoints({
         method: 'POST',
         body,
       }),
+      onQueryStarted: async (
+        { idInstance, chatId, templateId, params },
+        { dispatch, getState, queryFulfilled }
+      ) => {
+        const state = getState() as RootState;
+        const previousLastMessage = selectLastMessagesByChatId(state)[chatId] ?? null;
+        const tempIdMessage = generateTempMessageId();
+
+        const chatHistoryEntries = journalsGreenApiEndpoints.util
+          .selectInvalidatedBy(state, ['chatHistory'])
+          .filter(
+            (entry) =>
+              entry.endpointName === 'getChatHistory' &&
+              (entry.originalArgs as GetChatHistoryParametersInterface).chatId === chatId &&
+              (entry.originalArgs as GetChatHistoryParametersInterface).idInstance === idInstance
+          );
+
+        const optimisticMessage = {
+          type: 'outgoing' as const,
+          typeMessage: 'templateMessage' as const,
+          timestamp: Math.floor(Date.now() / 1000),
+          senderName: '',
+          senderContactName: '',
+          idMessage: tempIdMessage,
+          chatId,
+          templateMessage: {
+            templateId,
+            params,
+          },
+          statusMessage: 'pending' as const,
+        };
+
+        const patches = chatHistoryEntries.map(({ originalArgs }) =>
+          dispatch(
+            journalsGreenApiEndpoints.util.updateQueryData(
+              'getChatHistory',
+              originalArgs as GetChatHistoryParametersInterface,
+              (draft) => {
+                draft.push({ ...optimisticMessage });
+
+                return draft;
+              }
+            )
+          )
+        );
+
+        dispatch(chatActions.setLastMessageByChatId({ chatId, message: optimisticMessage }));
+
+        try {
+          const { data } = await queryFulfilled;
+
+          chatHistoryEntries.forEach(({ originalArgs }) =>
+            dispatch(
+              journalsGreenApiEndpoints.util.updateQueryData(
+                'getChatHistory',
+                originalArgs as GetChatHistoryParametersInterface,
+                (draft) => {
+                  const pendingMessage = draft.find((msg) => msg.idMessage === tempIdMessage);
+
+                  if (!pendingMessage) return;
+
+                  pendingMessage.idMessage = data.idMessage;
+                  pendingMessage.statusMessage = 'sent';
+                }
+              )
+            )
+          );
+
+          dispatch(
+            chatActions.setLastMessageByChatId({
+              chatId,
+              message: { ...optimisticMessage, idMessage: data.idMessage, statusMessage: 'sent' },
+            })
+          );
+        } catch {
+          patches.forEach((patch) => patch.undo());
+          dispatch(chatActions.setLastMessageByChatId({ chatId, message: previousLastMessage }));
+        }
+      },
     }),
   }),
 });

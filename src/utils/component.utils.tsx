@@ -15,8 +15,8 @@ import OTP from 'antd/es/input/OTP';
 import parse from 'html-react-parser';
 
 import { TextFormatter } from './text-formatter';
-import DoubleTickIcon from 'assets/double-tick.svg?react';
-import TickIcon from 'assets/tick.svg?react';
+import DoubleTickIcon from 'assets/icons/double-tick.svg?react';
+import TickIcon from 'assets/icons/tick.svg?react';
 import {
   GetTemplateMessageLayoutOptions,
   LanguageLiteral,
@@ -99,8 +99,11 @@ export function getMessageTypeIcon(typeMessage: TypeMessage, downloadUrl?: strin
   );
 }
 
-export function getFormattedMessage(textMessage: string): Renderable {
-  const formattedText = TextFormatter(textMessage);
+export function getFormattedMessage(
+  textMessage: string,
+  options: { enableMarkdownLinks?: boolean; compact?: boolean } = {}
+): Renderable {
+  const formattedText = TextFormatter(textMessage, options);
   if (!formattedText) {
     return textMessage;
   }

@@ -4,13 +4,15 @@ import { PhoneOutlined } from '@ant-design/icons';
 import { Avatar, Flex } from 'antd';
 import { useTranslation } from 'react-i18next';
 
-import emptyAvatarButAvailable from 'assets/emptyAvatarButAvailable.svg';
+import emptyAvatarButAvailable from 'assets/avatar/emptyAvatarButAvailable.svg';
 import AuthorizationStatus from 'components/instance-auth/authorization-status.component';
 import { useActions, useAppSelector } from 'hooks';
 import { useInstanceSettings } from 'hooks/use-instance-settings.hook';
 import { useIsMaxInstance } from 'hooks/use-is-max-instance';
+import { useIsTelegramInstance } from 'hooks/use-is-telegram-instance';
 import { useGetAvatarQuery } from 'services/green-api/endpoints';
 import { selectInstance } from 'store/slices/instances.slice';
+import { isAuthorizedInstanceState, normalizeAvatarSrc } from 'utils';
 
 export const Profile = () => {
   const { setIsAuthorizingInstance } = useActions();
@@ -20,6 +22,8 @@ export const Profile = () => {
 
   const { settings } = useInstanceSettings();
 
+  const isTelegram = useIsTelegramInstance();
+
   const isMax = useIsMaxInstance();
 
   const { data: avatar } = useGetAvatarQuery(
@@ -28,8 +32,7 @@ export const Profile = () => {
       chatId: `${settings?.phone}@c.us`,
     },
     {
-      skip:
-        !selectedInstance?.idInstance ||  !settings?.phone,
+      skip: !selectedInstance?.idInstance || !settings?.phone,
     }
   );
 
@@ -51,7 +54,13 @@ export const Profile = () => {
         style={{ height: 150, backgroundColor: 'var(--profile-background)', position: 'relative' }}
       >
         <Avatar
-          src={avatar?.urlAvatar?.trim() ? avatar.urlAvatar : emptyAvatarButAvailable}
+          src={normalizeAvatarSrc(
+            isTelegram
+              ? settings?.avatar
+              : avatar?.urlAvatar?.trim()
+                ? avatar.urlAvatar
+                : emptyAvatarButAvailable
+          )}
           size={115}
           style={{
             position: 'absolute',
@@ -63,7 +72,7 @@ export const Profile = () => {
         />
       </div>
       <AuthorizationStatus style={{ alignSelf: 'center', marginTop: 15 }} />
-      {settings?.stateInstance === 'authorized' && (
+      {isAuthorizedInstanceState(settings?.stateInstance) && (
         <div style={{ paddingLeft: '2rem' }}>
           <Flex
             gap={22}

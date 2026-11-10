@@ -3,11 +3,13 @@ import { memo } from 'react';
 import { LoadingOutlined } from '@ant-design/icons';
 import { Image, Flex, Space, Spin } from 'antd';
 
-import maxIcon from 'assets/max-logo.svg';
-import waIcon from 'assets/wa-logo.svg';
+import maxIcon from 'assets/messenger-logo/max-logo.svg';
+import telegramIcon from 'assets/messenger-logo/telegram-logo.svg';
+import waIcon from 'assets/messenger-logo/wa-logo.svg';
 import { isMaxInstance } from 'hooks/use-is-max-instance';
 import { useGetWaSettingsQuery, useGetAccountSettingsQuery } from 'services/green-api/endpoints';
-import { ExpandedInstanceInterface, StateInstanceEnum } from 'types';
+import { ExpandedInstanceInterface } from 'types';
+import { isAuthorizedInstanceState } from 'utils';
 
 const SelectInstanceLabel = ({
   idInstance,
@@ -18,22 +20,24 @@ const SelectInstanceLabel = ({
   typeInstance,
 }: Pick<
   ExpandedInstanceInterface,
-  'name' | 'idInstance' | 'instanceUrl' | 'sessionId' | 'typeInstance' |'orgId'
+  'name' | 'idInstance' | 'instanceUrl' | 'sessionId' | 'typeInstance' | 'orgId'
 >) => {
   const isMax = isMaxInstance(typeInstance);
+  const isTelegram = typeInstance === 'telegram';
+  const isAccountSettingsInstance = isMax || isTelegram;
 
   const { data: waSettings, isLoading: isLoadingWaSettings } = useGetWaSettingsQuery(
-    { idInstance, instanceUrl, sessionId, orgId},
-    { skip: isMax }
+    { idInstance, instanceUrl, sessionId, orgId },
+    { skip: isAccountSettingsInstance }
   );
 
   const { data: accountSettings, isLoading: isLoadingAccountSettings } = useGetAccountSettingsQuery(
-    { idInstance, instanceUrl, sessionId, orgId},
-    { skip: !isMax }
+    { idInstance, instanceUrl, sessionId, orgId },
+    { skip: !isAccountSettingsInstance }
   );
 
-  const settings = isMax ? accountSettings : waSettings;
-  const isLoading = isMax ? isLoadingAccountSettings : isLoadingWaSettings;
+  const settings = isAccountSettingsInstance ? accountSettings : waSettings;
+  const isLoading = isAccountSettingsInstance ? isLoadingAccountSettings : isLoadingWaSettings;
 
   return (
     <Space
@@ -54,11 +58,11 @@ const SelectInstanceLabel = ({
             style={{ verticalAlign: 'text-bottom' }}
             preview={false}
             width={16}
-            src={isMax ? maxIcon : waIcon}
+            src={isMax ? maxIcon : isTelegram ? telegramIcon : waIcon}
           />
           <div
             className={`statusCircle ${
-              settings?.stateInstance === StateInstanceEnum.Authorized
+              isAuthorizedInstanceState(settings?.stateInstance)
                 ? 'statusCircle__auth'
                 : 'statusCircle__notAuth'
             }`}

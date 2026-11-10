@@ -8,6 +8,7 @@ import {
   MessagesDate,
   OutgoingTemplateMessage,
   TemplateMessageInterface,
+  Themes,
   TypeConnectionMessage,
 } from 'types';
 
@@ -17,6 +18,14 @@ export function isContactInfo(
 ): info is GetContactInfoResponseInterface {
   if (isMax) return !info.chatId?.startsWith('-');
   return 'chatId' in info;
+}
+
+// Telegram groupData exposes `isChannel`, MAX groupData exposes `type: 'channel'`
+export function isChannelGroupData(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return false;
+  if ('isChannel' in data && data.isChannel) return true;
+  if ('type' in data && data.type === 'channel') return true;
+  return false;
 }
 
 export function isOutgoingTemplateMessage(
@@ -49,6 +58,11 @@ export function isValidChatType(type: string): type is ChatType {
     type === 'console-page' ||
     type === 'instance-view-page' ||
     type === 'partner-iframe' ||
-    type === 'one-chat-only'
+    type === 'one-chat-only' ||
+    type === 'mobile-mode'
   );
+}
+
+export function isValidTheme(theme: string): theme is Themes {
+  return theme === Themes.Default || theme === Themes.Dark;
 }

@@ -1,23 +1,16 @@
 .full-chat {
-  max-width: 1600px;
-  width: 97%;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   box-shadow: 0 6px 18px var(--register-form-shadow-color);
   border-radius: 0;
   background-color: var(--main-background);
   @include scrollBar();
 
-  @media screen and (max-width: 1440px) {
-    width: 100vw;
-    height: 100vh;
-  }
-
-  @media screen and (max-height: 950px) {
-    height: 100vh;
-  }
-
   &.console-page {
     width: 100vw;
     height: 100vh;
+    height: 100dvh;
     max-width: initial;
   }
 }
@@ -26,6 +19,7 @@
   &-header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     padding: 10px 16px;
     background-color: var(--second-background);
     z-index: 1000;
@@ -35,4 +29,13 @@
 .chat-view.full {
   height: 720px;
   flex-grow: 1;
+}
+
+.chat-form,
+.chat-form-container {
+  flex-shrink: 0;
+}
+
+.new-chat-btn {
+  font-size: 40px;
 }

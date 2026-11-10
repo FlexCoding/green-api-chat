@@ -1,0 +1,28 @@
+/**
+ * Number of messages requested via getChatHistory in the full (desktop) chat view.
+ *
+ * Chat headers must request the SAME count as the chat view so RTK Query dedupes them
+ * into a single request. Requesting a different count fires a second parallel
+ * getChatHistory for the same chat, which doubles the load and can trigger 429 errors
+ * (making chats open very slowly).
+ */
+// Ours: 50 (fewer round-trips through the middleware; upstream uses 20).
+export const FULL_CHAT_HISTORY_COUNT = 50;
+
+/** Same as {@link FULL_CHAT_HISTORY_COUNT} but for the mini (iframe) chat view. */
+export const MINI_CHAT_HISTORY_COUNT = 10;
+
+/** Upstream's "load more" cap. NOT applied in our chat view (REQ-0024: no cap, "start of history"). */
+export const MAX_CHAT_HISTORY_COUNT = 200;
+
+/** Number of extra messages loaded on each "load more" click. */
+export const CHAT_HISTORY_COUNT_STEP = 50;
+
+/**
+ * Delay before retrying getChatHistory in the chat view after a 429 response.
+ *
+ * The chat list's background "last message" sweep competes for the same instance
+ * rate limit, so opening a chat can get rate-limited on its very first fetch. We
+ * retry automatically instead of leaving the user stuck on an empty screen.
+ */
+export const CHAT_HISTORY_RATE_LIMIT_RETRY_DELAY = 3000;

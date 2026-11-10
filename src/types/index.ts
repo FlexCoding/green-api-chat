@@ -5,7 +5,9 @@ import { Color } from 'antd/es/color-picker';
 
 import {
   Button,
+  ContactListItemInterface,
   ExpandedInstanceInterface,
+  ExtendedTextMessage,
   FontType,
   GetContactInfoResponseInterface,
   GetGroupDataSuccessResponseInterface,
@@ -46,6 +48,8 @@ export interface ChatState {
   description?: string;
   brandImgUrl?: string;
   replyMessage: MessageDataForRender | null;
+  lastMessagesByChatId: Record<string, MessageInterface | null>;
+  lastMessagesInstanceKey: string | null;
 }
 
 export type ChatType =
@@ -53,29 +57,34 @@ export type ChatType =
   | 'console-page'
   | 'instance-view-page'
   | 'partner-iframe'
-  | 'one-chat-only';
+  | 'one-chat-only'
+  | 'mobile-mode';
 export type ChatPlatform = 'web' | 'ios' | 'android';
 
 export interface ActiveChat
-  extends Pick<MessageInterface, 'chatId' | 'senderName' | 'senderContactName'> {
+  extends Pick<MessageInterface, 'chatId' | 'senderName' | 'senderContactName' | 'chatType'> {
   avatar: string;
   contactInfo?:
     | GetContactInfoResponseInterface
     | GetGroupDataSuccessResponseInterface
     | 'Error: forbidden'
     | 'groupId not found';
+  newChatId?: string;
 }
 
 export interface InstancesState {
   selectedInstance: InstanceInterface;
   tariff: TariffsEnum;
+  enableCalls: boolean;
   isChatWorking: boolean | null;
   typeInstance: TypeInstance;
   instanceList: ExpandedInstanceInterface[] | null;
   isAuthorizingInstance: boolean;
+  isSendingStatus: 'text' | 'voice' | 'media' | null;
+  isLastMessagesSyncingAfterAuthorization: boolean;
 }
 
-export type TypeInstance = 'whatsapp' | 'v3';
+export type TypeInstance = 'whatsapp' | 'v3' | 'telegram';
 
 export interface InstanceInterface {
   idInstance: number;
@@ -106,7 +115,12 @@ export interface MessageMenuState {
   messageDataForRender: MessageDataForRender | null;
 }
 
-export type LanguageLiteral = 'en' | 'ru' | 'he';
+export interface ContactsModalState {
+  isOpen: boolean;
+  editedContact: ContactListItemInterface | null;
+}
+
+export type LanguageLiteral = 'en' | 'ru' | 'he' | 'tr';
 
 export interface AuthFormValues {
   login: string;
@@ -139,6 +153,7 @@ export interface ButtonsFormValues {
 
 export interface NewChatFormValues extends ChatFormValues {
   chatId: string;
+  chatIdType?: 'phone' | 'chatId';
 }
 
 export interface SendFileFormValues extends ChatFormValues {
@@ -217,6 +232,7 @@ export interface MessageDataInit {
     UserInterface & {
       platform: ChatPlatform;
       tariff: TariffsEnum;
+      enableCalls?: boolean;
       typeInstance: TypeInstance;
       instanceList: ExpandedInstanceInterface[];
     };
@@ -270,10 +286,10 @@ export type MessageServiceMethodName = 'editMessage' | 'deleteMessage';
 
 export type UserSideActiveMode =
   | 'chats'
+  | 'contacts'
   | 'settings'
   | 'profile'
   | 'statuses'
-  | 'calls'
   | 'archive'
   | 'instance'
   | 'logout'
@@ -310,6 +326,7 @@ export interface AsideItem {
   item: UserSideActiveMode;
   title: string;
   icon: ReactElement;
+  waOnly?: boolean;
 }
 
 export interface UserSideItem {
@@ -364,6 +381,7 @@ export interface MessageDataForRender {
   typeMessage: TypeMessage;
   textMessage: string;
   senderName: string;
+  senderType?: MessageInterface['senderType'];
   isLastMessage: boolean;
   timestamp: number;
   jsonMessage: string;
@@ -374,11 +392,16 @@ export interface MessageDataForRender {
   quotedMessage?: QuotedMessageInterface;
   templateMessage?: ParsedWabaTemplateInterface;
   interactiveButtonsMessage?: ParsedWabaTemplateInterface;
+  extendedTextMessage?: ExtendedTextMessage;
   caption?: string;
   fileName?: string;
   isDeleted?: boolean;
   isEdited?: boolean;
   pollMessageData?: PollMessageData;
+  reactions?: {
+    emoji: string;
+    count: number;
+  }[];
 }
 
 export interface MessageTooltipMenuData {

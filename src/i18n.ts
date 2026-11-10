@@ -9,12 +9,15 @@ i18n
   .use(initReactI18next)
   .init({
     fallbackLng: 'en',
+    supportedLngs: ['en', 'ru', 'he', 'tr'],
+    nonExplicitSupportedLngs: true,
+    load: 'languageOnly',
     backend: {
-      loadPath: '/locales_0.0.68/{{lng}}/translation.json',
+      loadPath: '/locales_1.0.4/{{lng}}/translation.json',
       expirationTime: 24 * 60 * 60 * 1000,
     },
     detection: {
-      order: ['localStorage', 'navigator', 'querystring', 'cookie', 'htmlTag', 'path', 'subdomain'],
+      order: ['querystring', 'localStorage', 'navigator', 'cookie', 'htmlTag', 'path', 'subdomain'],
       lookupQuerystring: 'lng',
       lookupCookie: 'i18next',
       lookupLocalStorage: 'i18nextLng',

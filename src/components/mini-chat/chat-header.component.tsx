@@ -4,28 +4,78 @@ import { LeftOutlined } from '@ant-design/icons';
 import { Flex, Space, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 
+import CallButton from 'components/shared/call-button.component';
+import { MINI_CHAT_HISTORY_COUNT } from 'configs';
 import { useActions, useAppSelector } from 'hooks';
-import { selectActiveChat } from 'store/slices/chat.slice';
+import { useGetChatHistoryQuery, useGetChatsQuery } from 'services/green-api/endpoints';
+import { selectActiveChat, selectType } from 'store/slices/chat.slice';
+import { selectInstance, selectTypeInstance } from 'store/slices/instances.slice';
 import { selectPlatform } from 'store/slices/user.slice';
+import { getFirstNonEmptyString } from 'utils';
 
 const ChatHeader: FC = () => {
   const activeChat = useAppSelector(selectActiveChat);
   const platform = useAppSelector(selectPlatform);
+  const instanceCredentials = useAppSelector(selectInstance);
+  const typeInstance = useAppSelector(selectTypeInstance);
+  const type = useAppSelector(selectType);
 
   const { t } = useTranslation();
 
   const { setActiveChat } = useActions();
 
+  const showCallButton =
+    typeInstance === 'whatsapp' && (type === 'console-page' || type === 'instance-view-page');
+
+  const { data: chats } = useGetChatsQuery(instanceCredentials, {
+    skip:
+      !activeChat ||
+      typeInstance !== 'telegram' ||
+      !instanceCredentials?.idInstance ||
+      !instanceCredentials?.sessionId,
+  });
+
+  const { data: chatHistory } = useGetChatHistoryQuery(
+    {
+      ...instanceCredentials,
+      chatId: activeChat?.chatId || '',
+      // Must match the count requested by ChatView so RTK Query dedupes both hooks
+      // into a single getChatHistory request instead of firing a second parallel one.
+      count: MINI_CHAT_HISTORY_COUNT,
+    },
+    {
+      skip:
+        !activeChat?.chatId || !instanceCredentials?.idInstance || !instanceCredentials?.sessionId,
+    }
+  );
+
   if (activeChat) {
+    const telegramChat = chats?.find((chat) => chat.chatId === activeChat.chatId);
+
+    const historySenderName = chatHistory?.find((message) =>
+      getFirstNonEmptyString(message.senderName, message.senderContactName)
+    );
+
+    const displayName = getFirstNonEmptyString(
+      telegramChat?.name,
+      activeChat.senderName,
+      historySenderName?.senderContactName,
+      historySenderName?.senderName,
+      activeChat.chatId
+    );
+
     return (
       <Flex align="center" gap={10}>
         <Space className="chatHeader-space">
           <a className="back-button">
             <LeftOutlined onClick={() => setActiveChat(null)} />
           </a>
-          <h3 className="text-overflow">{activeChat.senderName}</h3>
+          <h3 className="text-overflow" title={displayName}>
+            {displayName}
+          </h3>
         </Space>
-        {activeChat.chatId?.includes('@c') && <div>{activeChat.chatId?.replace(/\@.*$/, '')}</div>}
+
+        {activeChat.chatId?.includes('@c') && <div>{activeChat.chatId.replace(/\@.*$/, '')}</div>}
       </Flex>
     );
   }
@@ -33,25 +83,29 @@ const ChatHeader: FC = () => {
   return (
     <Flex justify="space-between" align="center">
       <h3 className="text-overflow">{t('CHAT_HEADER')}</h3>
-      <Space style={{ gap: 10 }}>
+
+      <Flex align="center" gap={8}>
         {platform === 'web' && (
-          <Typography.Link
-            onClick={() => {
-              window.parent.postMessage({ event: 'openChats' }, '*');
-            }}
-            target="_parent"
-            rel="noreferrer"
-            title={t('FULL_VERSION_TITLE')}
-          >
-            {t('FULL_VERSION')}
-          </Typography.Link>
+          <>
+            {showCallButton && <CallButton variant="link" />}
+            <Typography.Link
+              onClick={() => {
+                window.parent.postMessage({ event: 'openChats' }, '*');
+              }}
+              target="_parent"
+              rel="noreferrer"
+              title={t('FULL_VERSION_TITLE')}
+            >
+              {t('FULL_VERSION')}
+            </Typography.Link>
+          </>
         )}
         {/* {tariff === TariffsEnum.Developer && isChatWorking && (
           <Typography.Link title={t('TURN_OFF_CHAT')} onClick={() => setIsChatWorking(false)}>
             <PoweroffOutlined />
           </Typography.Link>
         )} */}
-      </Space>
+      </Flex>
     </Flex>
   );
 };

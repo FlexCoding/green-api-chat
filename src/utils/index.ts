@@ -8,14 +8,28 @@ import {
   CookieOptionsInterface,
   ExpandedInstanceInterface,
   LanguageLiteral,
+  StateInstanceEnum,
+  TypeInstance,
   UserInterface,
 } from 'types';
+
+export function isAuthorizedInstanceState(state?: StateInstanceEnum) {
+  return state === StateInstanceEnum.Authorized || state === StateInstanceEnum.YellowCard;
+}
+
+export function withTrailingSlash(url: string) {
+  return url.endsWith('/') ? url : `${url}/`;
+}
 
 export * from './component.utils';
 export * from './date.utils';
 export * from './chat-list.utils';
 export * from './type-guard.utils';
 export * from './message.utils';
+export * from './image.utils';
+export * from './chat-type.utils';
+export * from './string.utils';
+export * from './message-formatting.utils';
 
 export function getErrorMessage(error: unknown, t: i18n['t']): string | null {
   let errorMessage = '';
@@ -146,10 +160,24 @@ export function isHappyflow(searchParams: URLSearchParams): boolean {
   );
 }
 
+export function getTypeInstanceFromQuery(
+  typeInstance?: string | null,
+  fallback: TypeInstance = 'whatsapp'
+): TypeInstance {
+  if (!typeInstance) return fallback;
+
+  const normalized = typeInstance.trim().toLowerCase();
+
+  if (normalized === 'v3') return 'v3';
+  if (normalized === 'telegram') return 'telegram';
+  if (normalized === 'whatsapp') return 'whatsapp';
+
+  return fallback;
+}
+
 export function getSupportEmailByLanguage(language: LanguageLiteral) {
-  if (language === 'en' || language === 'he')
+  if (language === 'en' || language === 'he' || language === 'tr')
     return EXTERNAL_LINKS.supportEmail['console.greenapi.com'];
 
   return EXTERNAL_LINKS.supportEmail.default;
 }
-

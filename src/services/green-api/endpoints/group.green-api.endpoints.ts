@@ -1,4 +1,5 @@
 import { MIDDLEWARE_URL } from 'configs';
+import { persistor } from 'main';
 import { greenAPI } from 'services/green-api/green-api.service';
 import {
   AddGroupParticipantResponseInterface,
@@ -14,6 +15,17 @@ import {
   LeaveGroupResponseInterface,
 } from 'types';
 
+const clearPersistRootOnSuccess = async (
+  _arg: unknown,
+  { queryFulfilled }: { queryFulfilled: Promise<unknown> }
+) => {
+  try {
+    await queryFulfilled;
+    console.log('Clearing persist:root due to group data change');
+    localStorage.removeItem('persist:root');
+  } catch {}
+};
+
 export const groupGreenApiEndpoints = greenAPI.injectEndpoints({
   endpoints: (builder) => ({
     updateGroupName: builder.mutation<UpdateGroupNameResponseInterface, UpdateGroupNameInterface>({
@@ -23,10 +35,13 @@ export const groupGreenApiEndpoints = greenAPI.injectEndpoints({
         params: { instanceUrl, sessionId, orgId },
         body,
       }),
-      invalidatesTags: (result, error, { groupId, chatId }) => {
-        return [{ type: 'groupData', id: chatId ?? groupId }, { type: 'chatHistory' }];
-      },
+      onQueryStarted: clearPersistRootOnSuccess,
+      invalidatesTags: (result, error, { groupId, chatId }) => [
+        { type: 'groupData', id: chatId ?? groupId },
+        { type: 'chatHistory' },
+      ],
     }),
+
     addGroupParticipant: builder.mutation<
       AddGroupParticipantResponseInterface,
       GroupParticipantApiInterface
@@ -37,10 +52,10 @@ export const groupGreenApiEndpoints = greenAPI.injectEndpoints({
         params: { instanceUrl, sessionId, orgId },
         body,
       }),
-      invalidatesTags: (result, error, { groupId }) => {
-        return [{ type: 'groupData', id: groupId }];
-      },
+      onQueryStarted: clearPersistRootOnSuccess,
+      invalidatesTags: (result, error, { groupId }) => [{ type: 'groupData', id: groupId }],
     }),
+
     removeParticipant: builder.mutation<
       RemoveGroupParticipantResponseInterface,
       GroupParticipantApiInterface
@@ -51,10 +66,10 @@ export const groupGreenApiEndpoints = greenAPI.injectEndpoints({
         params: { instanceUrl, sessionId, orgId },
         body,
       }),
-      invalidatesTags: (result, error, { groupId }) => {
-        return [{ type: 'groupData', id: groupId }];
-      },
+      onQueryStarted: clearPersistRootOnSuccess,
+      invalidatesTags: (result, error, { groupId }) => [{ type: 'groupData', id: groupId }],
     }),
+
     setGroupAdmin: builder.mutation<SetGroupAdminResponseInterface, SetGroupAdminInterface>({
       query: ({ idInstance, instanceUrl, sessionId, orgId, ...body }) => ({
         url: `${MIDDLEWARE_URL}/setGroupAdmin`,
@@ -62,10 +77,12 @@ export const groupGreenApiEndpoints = greenAPI.injectEndpoints({
         params: { instanceUrl, sessionId, orgId },
         body,
       }),
-      invalidatesTags: (result, error, { groupId, chatId }) => {
-        return [{ type: 'groupData', id: chatId ?? groupId }];
-      },
+      onQueryStarted: clearPersistRootOnSuccess,
+      invalidatesTags: (result, error, { groupId, chatId }) => [
+        { type: 'groupData', id: chatId ?? groupId },
+      ],
     }),
+
     removeAdmin: builder.mutation<RemoveGroupAdminResponseInterface, SetGroupAdminInterface>({
       query: ({ idInstance, instanceUrl, sessionId, orgId, ...body }) => ({
         url: `${MIDDLEWARE_URL}/removeAdmin`,
@@ -73,10 +90,12 @@ export const groupGreenApiEndpoints = greenAPI.injectEndpoints({
         params: { instanceUrl, sessionId, orgId },
         body,
       }),
-      invalidatesTags: (result, error, { groupId, chatId }) => {
-        return [{ type: 'groupData', id: chatId ?? groupId }];
-      },
+      onQueryStarted: clearPersistRootOnSuccess,
+      invalidatesTags: (result, error, { groupId, chatId }) => [
+        { type: 'groupData', id: chatId ?? groupId },
+      ],
     }),
+
     setGroupPicture: builder.mutation<
       SetGroupPictureResponseInterface,
       {
@@ -95,9 +114,11 @@ export const groupGreenApiEndpoints = greenAPI.injectEndpoints({
         params: { instanceUrl, sessionId, orgId },
         body,
       }),
+      onQueryStarted: clearPersistRootOnSuccess,
       invalidatesTags: (result, error, { body }) => {
         const groupId = body.get('groupId');
         const chatId = body.get('chatId');
+
         return [
           {
             type: 'avatar',
@@ -112,6 +133,7 @@ export const groupGreenApiEndpoints = greenAPI.injectEndpoints({
         ];
       },
     }),
+
     leaveGroup: builder.mutation<LeaveGroupResponseInterface, GroupBaseParametersInterface>({
       query: ({ idInstance, instanceUrl, sessionId, orgId, ...body }) => ({
         url: `${MIDDLEWARE_URL}/leaveGroup`,
@@ -119,9 +141,10 @@ export const groupGreenApiEndpoints = greenAPI.injectEndpoints({
         params: { instanceUrl, sessionId, orgId },
         body,
       }),
-      invalidatesTags: (result, error, { groupId, chatId }) => {
-        return [{ type: 'groupData', id: chatId ?? groupId }];
-      },
+      onQueryStarted: clearPersistRootOnSuccess,
+      invalidatesTags: (result, error, { groupId, chatId }) => [
+        { type: 'groupData', id: chatId ?? groupId },
+      ],
     }),
   }),
 });

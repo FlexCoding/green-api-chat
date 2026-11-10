@@ -1,4 +1,3 @@
-import { MIDDLEWARE_URL } from 'configs';
 import {
   BaseQueryFn,
   createApi,
@@ -7,9 +6,16 @@ import {
   FetchBaseQueryError,
 } from '@reduxjs/toolkit/query/react';
 
+import { MIDDLEWARE_URL } from 'configs';
 import { RootState } from 'store';
 import { InstanceInterface, MessageInterface } from 'types';
-import { getIsMiniVersion, getLastChats, updateLastChats, getAllChats } from 'utils';
+import {
+  getIsMiniVersion,
+  getLastChats,
+  updateAllChats,
+  updateLastChats,
+  getAllChats,
+} from 'utils';
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: '',
@@ -26,7 +32,7 @@ export const setMiddlewareGroupKey = (groupKey: string | null) => {
   middlewareGroupKey = groupKey;
 };
 
-const withGroupKey = (args: string | FetchArgs): string | FetchArgs => {
+export const withGroupKey = (args: string | FetchArgs): string | FetchArgs => {
   if (typeof args === 'string' || !middlewareGroupKey) return args;
   if (!args.url || !args.url.startsWith(MIDDLEWARE_URL)) return args;
   return { ...args, params: { ...(args.params ?? {}), groupKey: middlewareGroupKey } };
@@ -51,9 +57,9 @@ const customQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError>
 
   const state = api.getState() as RootState;
   const type = state.chatReducer.type;
-  const {  allMessages, minutesToRefetch ,  instanceUrl, sessionId, orgId, ownerId, } = (
+  const { allMessages, minutesToRefetch, instanceUrl, sessionId, orgId, ownerId } = (
     args as FetchArgs
-  ).params as InstanceInterface & { allMessages?: boolean; minutesToRefetch?: number; };
+  ).params as InstanceInterface & { allMessages?: boolean; minutesToRefetch?: number };
 
   const cacheKey = `lastMessages(${JSON.stringify({ allMessages })})`;
   const currentChats: MessageInterface[] | undefined = state.greenAPI.queries[cacheKey]?.data as
@@ -135,11 +141,10 @@ const customQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError>
             lastIncomingMessages.data as MessageInterface[],
             lastOutgoingMessages.data as MessageInterface[]
           ))
-        : (lastIncomingMessages.data = updateLastChats(
+        : (lastIncomingMessages.data = updateAllChats(
             currentChats as MessageInterface[],
             lastIncomingMessages.data as MessageInterface[],
-            lastOutgoingMessages.data as MessageInterface[],
-            getIsMiniVersion(type) ? 5 : undefined
+            lastOutgoingMessages.data as MessageInterface[]
           ));
     } else {
       lastIncomingMessages.data = !currentChats
@@ -176,5 +181,7 @@ export const greenAPI = createApi({
     'chatHistory',
     'avatar',
     'statuses',
+    'contacts',
+    'chats',
   ],
 });

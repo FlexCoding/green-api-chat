@@ -5,49 +5,82 @@ import { Button, Flex, List, Modal, Input, message } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import GroupContactListItem from './group-contact-list-item.component';
+import ChatIdInput from 'components/UI/chat-id-input.component';
 import { useAppSelector } from 'hooks';
 import { useIsMaxInstance } from 'hooks/use-is-max-instance';
-import { useAddGroupParticipantMutation } from 'services/green-api/endpoints';
+import { useIsTelegramInstance } from 'hooks/use-is-telegram-instance';
+import { useAddGroupParticipantMutation, useGetGroupDataQuery } from 'services/green-api/endpoints';
 import { selectActiveChat } from 'store/slices/chat.slice';
 import { selectInstance } from 'store/slices/instances.slice';
-import { ActiveChat } from 'types';
-import { isContactInfo } from 'utils';
+import { ActiveChat, GroupParticipantInterface } from 'types';
+import { isChannelGroupData, isContactInfo } from 'utils';
+import { isLidChatId, splitChatId } from 'utils/chat-id.utils';
 
 const GroupContactList: FC = () => {
   const activeChat = useAppSelector(selectActiveChat) as ActiveChat;
   const instanceCredentials = useAppSelector(selectInstance);
   const { t } = useTranslation();
+  const isMax = useIsMaxInstance();
+  const isTelegram = useIsTelegramInstance();
+
+  const { data: groupData } = useGetGroupDataQuery(
+    {
+      ...instanceCredentials,
+      ...(isMax || isTelegram ? { chatId: activeChat.chatId } : { groupId: activeChat.chatId }),
+    },
+    {
+      skip:
+        !activeChat?.chatId ||
+        !instanceCredentials?.idInstance ||
+        !instanceCredentials?.sessionId ||
+        !isTelegram,
+    }
+  );
 
   const [addParticipant] = useAddGroupParticipantMutation();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
 
-  const isMax = useIsMaxInstance();
+  if (!isTelegram) {
+    if (!activeChat.contactInfo || typeof activeChat.contactInfo === 'string') {
+      return null;
+    }
 
-  if (!activeChat.contactInfo || typeof activeChat.contactInfo === 'string') {
-    return null;
-  }
-
-  if (isContactInfo(activeChat.contactInfo, isMax)) {
-    return null;
+    if (isContactInfo(activeChat.contactInfo, isMax)) {
+      return null;
+    }
   }
 
   const showModal = () => setIsModalVisible(true);
 
   const handleModalOk = async () => {
-    const cleaned = phoneNumber.replace(/\D/g, '');
+    let participantChatId: string;
 
-    if (cleaned.length < 7) {
-      message.error(t('ENTER_VALID_PHONE_NUMBER'));
-      return;
+    if (!isMax && !isTelegram) {
+      const [identifier] = splitChatId(phoneNumber);
+      const minLength = isLidChatId(phoneNumber) ? 3 : 7;
+
+      if (identifier.length < minLength) {
+        message.error(t('ENTER_VALID_CHAT_ID', 'Введите корректный идентификатор'));
+        return;
+      }
+
+      participantChatId = phoneNumber;
+    } else {
+      const cleaned = phoneNumber.replace(/\D/g, '');
+
+      if (cleaned.length < 7) {
+        message.error(t('ENTER_VALID_PHONE_NUMBER'));
+        return;
+      }
+
+      participantChatId = `${cleaned}${isMax ? '' : '@c.us'}`;
     }
-
-    const participantChatId = `${cleaned}${isMax ? '' : '@c.us'}`;
 
     try {
       const res = await addParticipant({
-        ...(isMax ? { chatId: activeChat.chatId } : { groupId: activeChat.chatId }),
+        ...(isMax || isTelegram ? { chatId: activeChat.chatId } : { groupId: activeChat.chatId }),
         participantChatId,
         ...instanceCredentials,
       });
@@ -71,11 +104,28 @@ const GroupContactList: FC = () => {
     setPhoneNumber('');
   };
 
+  const getParticipantsFromData = (data: unknown): GroupParticipantInterface[] => {
+    if (data && typeof data === 'object' && 'participants' in data) {
+      return data.participants as GroupParticipantInterface[];
+    }
+    return [];
+  };
+
+  const isChannel = isChannelGroupData(isTelegram ? groupData : activeChat.contactInfo);
+
+  const participants = isTelegram
+    ? getParticipantsFromData(groupData)
+    : getParticipantsFromData(activeChat.contactInfo);
+
+  if (isChannel || participants.length === 0) {
+    return null;
+  }
+
   return (
     <>
-      <List
+      <List<GroupParticipantInterface>
         className="group-contact-list p-10"
-        dataSource={activeChat.contactInfo.participants}
+        dataSource={participants}
         pagination={{
           pageSize: 4,
           showLessItems: true,
@@ -98,12 +148,21 @@ const GroupContactList: FC = () => {
         okText={t('ADD')}
         cancelText={t('CANCEL')}
       >
-        <Input
-          placeholder={isMax ? '10000000' : t('ADD_PARTICIPANT_PLACEHOLDER')}
-          value={phoneNumber}
-          onChange={(e) => setPhoneNumber(e.target.value)}
-          maxLength={15}
-        />
+        {isMax || isTelegram ? (
+          <Input
+            placeholder={isMax ? '10000000' : t('ADD_PARTICIPANT_PLACEHOLDER')}
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(e.target.value)}
+            maxLength={15}
+          />
+        ) : (
+          <ChatIdInput
+            value={phoneNumber}
+            onChange={setPhoneNumber}
+            suffixes={['@c.us', '@lid']}
+            autoComplete="off"
+          />
+        )}
       </Modal>
     </>
   );

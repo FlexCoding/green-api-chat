@@ -3,27 +3,32 @@ import { FC, useMemo } from 'react';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 
-import emptyAvatar from 'assets/emptyAvatar-first.png';
+import emptyAvatar from 'assets/avatar/emptyAvatarButAvailable.svg';
 import AvatarImage from 'components/UI/avatar-image.component';
 import { useActions, useAppSelector } from 'hooks';
+import { useBreakpoint } from 'hooks/use-breakpoint.hook';
 import { useInstanceSettings } from 'hooks/use-instance-settings.hook';
 import { selectType, selectUserSideActiveMode } from 'store/slices/chat.slice';
 import type { AsideItem } from 'types';
-import { useBreakpoint } from 'hooks/use-breakpoint.hook';
 
 interface AsideItemProps {
   asideItem: AsideItem;
+  showLabel?: boolean;
+  highlightSettingsGroup?: boolean;
 }
 
-const SETTINGS_ITEMS = ['instance', 'profile', 'logout'] as AsideItem['item'][];
+const SETTINGS_ITEMS = ['instance', 'profile', 'logout', 'language'] as AsideItem['item'][];
 
-const AsideItem: FC<AsideItemProps> = ({ asideItem }) => {
+const AsideItem: FC<AsideItemProps> = ({
+  asideItem,
+  showLabel = false,
+  highlightSettingsGroup = true,
+}) => {
   const activeAsideItem = useAppSelector(selectUserSideActiveMode);
   const type = useAppSelector(selectType);
 
-
   const { setUserSideActiveMode, setActiveChat, setType } = useActions();
-  const { isMobile } = useBreakpoint();
+  const { isMobile, isTablet } = useBreakpoint();
 
   const { t } = useTranslation();
 
@@ -33,9 +38,14 @@ const AsideItem: FC<AsideItemProps> = ({ asideItem }) => {
 
   const handleSetActive = () => {
     if (asideItem.item === 'settings') return;
+    // one-chat-only is only ever entered from outside (chatId postMessage); going
+    // back to the chat list leaves it for the regular embedded view.
     if (asideItem.item === 'chats' && type === 'one-chat-only') setType('partner-iframe');
     setUserSideActiveMode(asideItem.item);
-    isMobile && setActiveChat(null);
+
+    if (isMobile || isTablet) {
+      setActiveChat(null);
+    }
   };
 
   const avatar = useMemo<string>(() => {
@@ -54,16 +64,18 @@ const AsideItem: FC<AsideItemProps> = ({ asideItem }) => {
     <a
       className={clsx(
         'aside-item flex-center',
-        { active: isActive },
+        { active: isActive, 'aside-item-with-label': showLabel },
         activeAsideItem === asideItem.item && 'active-aside-item',
-        SETTINGS_ITEMS.includes(activeAsideItem) &&
-        asideItem.item === 'settings' &&
-        'active-aside-item'
+        highlightSettingsGroup &&
+          SETTINGS_ITEMS.includes(activeAsideItem) &&
+          asideItem.item === 'settings' &&
+          'active-aside-item'
       )}
       onClick={handleSetActive}
       title={t(asideItem.title)}
     >
       {asideItem.icon}
+      {showLabel && <span className="aside-item-label">{t(asideItem.title)}</span>}
     </a>
   );
 };

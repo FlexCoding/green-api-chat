@@ -13,6 +13,7 @@ import {
 import { selectInstance } from 'store/slices/instances.slice';
 import { SendVoiceStatusFormValues } from 'types';
 import { isApiError } from 'utils';
+import { ensureChatIdSuffix } from 'utils/chat-id.utils';
 
 interface SendVoiceStatusProperties {
   isMedia?: boolean;
@@ -31,10 +32,7 @@ const SendVoiceStatus: FC<SendVoiceStatusProperties> = ({ isMedia }) => {
   const onFinish = async (values: SendVoiceStatusFormValues) => {
     const color = values.backgroundColor?.toHexString();
 
-    const participants = values.participants?.map((participant) => {
-      const cleaned = participant.trim();
-      return cleaned.endsWith('@c.us') ? cleaned : `${cleaned}@c.us`;
-    });
+    const participants = values.participants?.map((participant) => ensureChatIdSuffix(participant));
 
     const body = {
       ...instanceCredentials,
@@ -48,7 +46,7 @@ const SendVoiceStatus: FC<SendVoiceStatusProperties> = ({ isMedia }) => {
     if (isApiError(error)) {
       switch (error.status) {
         case 466:
-          return form.setFields([{ name: 'response', errors: [t('QUOTE_EXCEEDED')] }]);
+          return form.setFields([{ name: 'response', errors: [t('STATUS_QUOTE_EXCEEDED')] }]);
         default:
           const errorData = error.data;
           const errorMessage =

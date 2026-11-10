@@ -15,7 +15,6 @@ export const receivingGreenApiEndpoints = greenAPI.injectEndpoints({
       query: ({ instanceUrl, sessionId, orgId }) => ({
         url: `${MIDDLEWARE_URL}/receiveNotification`,
         params: { instanceUrl, sessionId, orgId },
-
       }),
     }),
     deleteNotification: builder.mutation<ResultResponseInterface, DeleteNotificationParameters>({
@@ -26,7 +25,7 @@ export const receivingGreenApiEndpoints = greenAPI.injectEndpoints({
       }),
     }),
     downloadFile: builder.mutation<DownloadFileResponseInterface, GetChatInformationParameters>({
-      query: ({idInstance, instanceUrl, sessionId, orgId, ...body }) => ({
+      query: ({ idInstance, instanceUrl, sessionId, orgId, ...body }) => ({
         url: `${MIDDLEWARE_URL}/downloadFile`,
         method: 'POST',
         params: { instanceUrl, sessionId, orgId },

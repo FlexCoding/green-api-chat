@@ -3,10 +3,11 @@ import { FC, useMemo } from 'react';
 import { List, Skeleton, Tag } from 'antd';
 
 import ParticipantMenu from './participant-menu.component';
-import emptyAvatar from 'assets/emptyAvatarButAvailable.svg';
+import emptyAvatar from 'assets/avatar/emptyAvatarButAvailable.svg';
 import AvatarImage from 'components/UI/avatar-image.component';
 import { useAppSelector } from 'hooks';
 import { useIsMaxInstance } from 'hooks/use-is-max-instance';
+import { useIsTelegramInstance } from 'hooks/use-is-telegram-instance';
 import { useGetContactInfoQuery } from 'services/green-api/endpoints';
 import { selectInstance } from 'store/slices/instances.slice';
 import { selectTheme } from 'store/slices/theme.slice';
@@ -22,20 +23,30 @@ const GroupContactListItem: FC<GroupContactListItemProps> = ({ participant }) =>
   const theme = useAppSelector(selectTheme);
 
   const isMax = useIsMaxInstance();
+  const isTelegram = useIsTelegramInstance();
+  const participantChatId = (isMax || isTelegram ? participant.chatId : participant.id) ?? '';
 
   const {
     data: contactInfo,
     isLoading,
     isFetching,
-  } = useGetContactInfoQuery({
-    ...instanceCredentials,
-    chatId: isMax ? (participant.chatId as string) : participant.id,
-  });
+  } = useGetContactInfoQuery(
+    {
+      ...instanceCredentials,
+      chatId: participantChatId,
+    },
+    {
+      skip: isTelegram || !participantChatId,
+    }
+  );
 
   const contactName =
-    contactInfo?.contactName || contactInfo?.name || getPhoneNumberFromChatId(participant.id);
+    contactInfo?.contactName ||
+    contactInfo?.name ||
+    participant.name ||
+    getPhoneNumberFromChatId(participantChatId);
 
-  const phoneNumber = getPhoneNumberFromChatId(participant.id);
+  const phoneNumber = getPhoneNumberFromChatId(participantChatId);
 
   const avatar = useMemo<string>(() => {
     if (contactInfo?.avatar) {
@@ -53,12 +64,12 @@ const GroupContactListItem: FC<GroupContactListItemProps> = ({ participant }) =>
         <List.Item.Meta
           avatar={<AvatarImage src={avatar} size="large" />}
           title={
-            <h6
+            <span
               className="text-overflow message-signerData"
               style={{ fontSize: 14, maxWidth: 280, width: '100%' }}
             >
               {contactName}
-            </h6>
+            </span>
           }
           description={contactName === phoneNumber ? null : phoneNumber}
         />

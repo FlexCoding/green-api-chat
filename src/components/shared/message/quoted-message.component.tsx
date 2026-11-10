@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 
 import MessageTooltip from './message-tooltip/message-tooltip.component';
 import { useAppSelector } from 'hooks';
+import { useIsMaxInstance } from 'hooks/use-is-max-instance';
+import { useIsTelegramInstance } from 'hooks/use-is-telegram-instance';
 import { selectMiniVersion } from 'store/slices/chat.slice';
 import { MessageDataForRender, QuotedMessageInterface, TypeConnectionMessage } from 'types';
 import {
@@ -22,18 +24,25 @@ interface QuotedMessageProps {
 }
 
 const QuotedMessage: FC<QuotedMessageProps> = ({ quotedMessage, type, messageDataForRender }) => {
-  const { typeMessage, downloadUrl } = quotedMessage;
+  const typeMessage = quotedMessage.typeMessage ?? 'textMessage';
+  const downloadUrl = 'downloadUrl' in quotedMessage ? quotedMessage.downloadUrl : undefined;
 
   const { i18n } = useTranslation();
 
   const isMiniVersion = useAppSelector(selectMiniVersion);
+  const isMax = useIsMaxInstance();
+  const isTelegram = useIsTelegramInstance();
+  const enableMarkdownLinks = isMax || isTelegram;
 
   const participant = quotedMessage.participant
     ? getPhoneNumberFromChatId(quotedMessage.participant)
     : null;
-  const textMessage = getTextMessage(quotedMessage);
+  const textMessage = getTextMessage({
+    ...quotedMessage,
+    typeMessage,
+  });
   const jsonMessage = getJSONMessage(quotedMessage);
-  const formattedMessage = getFormattedMessage(textMessage);
+  const formattedMessage = getFormattedMessage(textMessage, { enableMarkdownLinks });
 
   const dir = i18n.dir();
 
@@ -56,7 +65,7 @@ const QuotedMessage: FC<QuotedMessageProps> = ({ quotedMessage, type, messageDat
           >
             {formattedMessage}
           </Typography.Paragraph>
-          {quotedMessage.jpegThumbnail && (
+          {typeof quotedMessage.jpegThumbnail === 'string' && quotedMessage.jpegThumbnail && (
             <img
               src={`data:image/jpeg;base64,${quotedMessage.jpegThumbnail}`}
               alt="thumbnail"

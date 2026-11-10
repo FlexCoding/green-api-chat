@@ -3,6 +3,7 @@ import { groupGreenApiEndpoints } from './group.green-api.endpoints';
 import { journalsGreenApiEndpoints } from './journals.green-api.endpoints';
 import { middlewareGreenApiEndpoints } from './middleware.green-api.endpoints';
 import { persistedMethods } from './persisted-methods.green-api.endpoints';
+import { readMarkGreenApiEndpoints } from './read-mark.green-api.endpoints';
 import { receivingGreenApiEndpoints } from './receiving.green-api.endpoints';
 import { sendingGreenApiEndpoints } from './sending.green-api.endpoints';
 import { serviceMethodsGreenApiEndpoints } from './service-methods.green-api.endpoints';
@@ -12,16 +13,24 @@ import { wabaGreenApiEndpoints } from './waba.green-api.endpoints';
 export const {
   useSendMessageMutation,
   useGetChatHistoryQuery,
+  useLazyGetChatHistoryQuery,
+  useLazyGetChatLastMessageQuery,
   useGetContactInfoQuery,
   useLazyGetGroupDataQuery,
   useLazyGetContactInfoQuery,
   useCheckWhatsappMutation,
+  useCheckAccountMutation,
+  useGetContactsQuery,
+  useAddContactMutation,
+  useEditContactMutation,
+  useDeleteContactMutation,
   useLastMessagesQuery,
   useSendFileByUploadMutation,
   useSendContactMutation,
   useSendLocationMutation,
   useSendPollMutation,
   useGetWaSettingsQuery,
+  useLazyGetSettingsQuery,
   useSendTemplateMutation,
   useGetTemplatesQuery,
   useGetTemplateByIdQuery,
@@ -40,6 +49,9 @@ export const {
   useSendTextStatusMutation,
   useSendVoiceStatusMutation,
   useSendMediaStatusMutation,
+  useDeleteStatusMutation,
+  useGetIncomingStatusesQuery,
+  useGetOutgoingStatusesQuery,
   useGetAccountSettingsQuery,
   useGetAuthorizationCodeMutation,
   useLazyLastMessagesQuery,
@@ -52,6 +64,10 @@ export const {
   useGetAvatarQuery,
   useLazyGetAvatarQuery,
   useLazyGetGreenCredentialsQuery,
+  useQrMutation,
+  useGetChatsQuery,
+  useLazyGetChatsQuery,
+  useReadChatMutation,
 } = {
   ...accountGreenApiEndpoints,
   ...sendingGreenApiEndpoints,
@@ -63,4 +79,5 @@ export const {
   ...statusesGreenApiEndpoints,
   ...persistedMethods,
   ...middlewareGreenApiEndpoints,
+  ...readMarkGreenApiEndpoints,
 };

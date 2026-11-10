@@ -1,17 +1,22 @@
-import { FC, useEffect, useMemo, useRef, useState } from 'react';
+import { FC, useEffect, useMemo, useRef } from 'react';
 
 import { Button, Empty, Spin } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import Message from './message/message.component';
 import LeftGroupAlert from 'components/alerts/left-group-alert.component';
+import {
+  CHAT_HISTORY_COUNT_STEP,
+  CHAT_HISTORY_RATE_LIMIT_RETRY_DELAY,
+  FULL_CHAT_HISTORY_COUNT,
+  MINI_CHAT_HISTORY_COUNT,
+} from 'configs';
 import { useActions, useAppSelector } from 'hooks';
 import { useIsMaxInstance } from 'hooks/use-is-max-instance';
-import { useGetProfileSettingsQuery } from 'services/app/endpoints';
+import { useIsWabaInstance } from 'hooks/use-is-waba-instance';
 import { useGetChatHistoryQuery, useGetTemplatesQuery } from 'services/green-api/endpoints';
-import { selectActiveChat, selectMiniVersion } from 'store/slices/chat.slice';
+import { selectActiveChat, selectMessageCount, selectMiniVersion } from 'store/slices/chat.slice';
 import { selectInstance } from 'store/slices/instances.slice';
-import { selectUser } from 'store/slices/user.slice';
 import {
   ActiveChat,
   LanguageLiteral,
@@ -28,15 +33,18 @@ import {
   isOutgoingTemplateMessage,
 } from 'utils';
 
+// How close to the bottom (in px) still counts as "at the bottom" for auto-scroll purposes.
+const AT_BOTTOM_SCROLL_THRESHOLD = 80;
+
 const ChatView: FC = () => {
-  const { idUser, apiTokenUser, projectId } = useAppSelector(selectUser);
   const instanceCredentials = useAppSelector(selectInstance);
   const activeChat = useAppSelector(selectActiveChat) as ActiveChat;
   const isMiniVersion = useAppSelector(selectMiniVersion);
 
-  const [count, setCount] = useState(50);
+  const count = useAppSelector(selectMessageCount);
   const { setMessageCount } = useActions();
   const isMax = useIsMaxInstance();
+  const isWaba = useIsWabaInstance();
 
   let previousMessageAreOutgoing = false;
   let previousSenderName = '';
@@ -48,16 +56,17 @@ const ChatView: FC = () => {
 
   const chatViewRef = useRef<HTMLDivElement | null>(null);
   const scrollPositionRef = useRef<{ top: number; height: number } | null>(null);
-
-  const { data: profileSettings } = useGetProfileSettingsQuery(
-    { idUser, apiTokenUser, projectId },
-    { skip: !idUser || !apiTokenUser }
-  );
+  const shouldScrollToBottomRef = useRef(true);
+  // Tracks whether the user was scrolled to (or near) the bottom right before the
+  // messages list changed — kept up to date by the scroll listener below, independent of
+  // the messages/templates effect, so it reflects where the user actually was, not where
+  // the last render left them.
+  const isAtBottomRef = useRef(true);
 
   const { data: templates, isLoading: templatesLoading } = useGetTemplatesQuery(
     instanceCredentials,
     {
-      skip: !(profileSettings && profileSettings.result && profileSettings.data.isWaba),
+      skip: !isWaba,
     }
   );
 
@@ -66,11 +75,12 @@ const ChatView: FC = () => {
     isLoading,
     isFetching,
     error,
+    refetch,
   } = useGetChatHistoryQuery(
     {
       ...instanceCredentials,
       chatId: activeChat.chatId,
-      count: isMiniVersion ? 10 : count,
+      count: isMiniVersion ? MINI_CHAT_HISTORY_COUNT : count,
     },
     {
       skipPollingIfUnfocused: true,
@@ -78,101 +88,279 @@ const ChatView: FC = () => {
     }
   );
 
+  const isRateLimitError = !!error && 'status' in error && error.status === 429;
+
   useEffect(() => {
-    setCount(50);
-    setMessageCount(50);
+    if (!isRateLimitError) return;
+
+    const timeout = setTimeout(() => {
+      refetch();
+    }, CHAT_HISTORY_RATE_LIMIT_RETRY_DELAY);
+
+    return () => clearTimeout(timeout);
+    // `error` (not `isRateLimitError`) must drive this: RTK Query gives every failed
+    // attempt a new error object, so this is what re-fires the effect on each consecutive
+    // 429. A derived boolean would stay `true` across retries and the effect would only
+    // run once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error, refetch]);
+
+  useEffect(() => {
+    shouldScrollToBottomRef.current = true;
+    setMessageCount(FULL_CHAT_HISTORY_COUNT);
+
+    // If this chat's messages are already cached, `messages` won't change
+    // reference below, so the [messages, templates] effect never reruns to
+    // consume the flag — scroll down right away for that case. Otherwise
+    // leave the flag set for that effect to consume once the fetch resolves.
+    const element = chatViewRef.current;
+    if (element && !isFetching) {
+      element.scrollTop = element.scrollHeight;
+      shouldScrollToBottomRef.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChat]);
 
-  // A history shorter than what we asked for = both sources (Green + the
-  // middleware's archive) are exhausted.
-  const requestedCount = isMiniVersion ? 10 : count;
-  const hasMore = (messages?.length ?? 0) >= requestedCount;
+  useEffect(() => {
+    const element = chatViewRef.current;
+    if (!element) return;
+
+    const handleScroll = () => {
+      isAtBottomRef.current =
+        element.scrollHeight - element.scrollTop - element.clientHeight <=
+        AT_BOTTOM_SCROLL_THRESHOLD;
+    };
+
+    element.addEventListener('scroll', handleScroll, { passive: true });
+    return () => element.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleLoadMore = () => {
-    if (!hasMore) return;
+    if (!canLoadMore) return;
 
     const element = chatViewRef.current;
     if (!element) return;
 
+    shouldScrollToBottomRef.current = false;
     scrollPositionRef.current = {
       top: element.scrollTop,
       height: element.scrollHeight,
     };
 
-    setCount((prev) => {
-      const next = prev + 50;
-      setMessageCount(next);
-      return next;
-    });
+    setMessageCount(count + CHAT_HISTORY_COUNT_STEP);
   };
 
   useEffect(() => {
     const element = chatViewRef.current;
-    if (!element || !scrollPositionRef.current) return;
+    if (!element) return;
 
-    const heightDiff = element.scrollHeight - scrollPositionRef.current.height;
-
-    element.scrollTop = scrollPositionRef.current.top + heightDiff;
-
-    scrollPositionRef.current = null;
-  }, [messages]);
-
-  useEffect(() => {
-    const element = chatViewRef.current;
-    if (element && count === 50 && !scrollPositionRef.current) {
-      setTimeout(() => {
-        element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' });
-      }, 10);
+    if (shouldScrollToBottomRef.current) {
+      element.scrollTop = element.scrollHeight;
+      shouldScrollToBottomRef.current = false;
+      return;
     }
-  }, [count, templates]);
 
-  const loaderVisible = !isMiniVersion && isFetching;
+    if (scrollPositionRef.current) {
+      const heightDiff = element.scrollHeight - scrollPositionRef.current.height;
+      element.scrollTop = scrollPositionRef.current.top + heightDiff;
+      scrollPositionRef.current = null;
+      return;
+    }
+
+    // New message arrived (sent or received) while the user was already at the bottom —
+    // follow it down. If they'd scrolled up to read history, leave them where they are.
+    if (isAtBottomRef.current) {
+      element.scrollTop = element.scrollHeight;
+    }
+  }, [messages, templates]);
+
+  const loaderVisible = !isMiniVersion && (isFetching || isRateLimitError);
+
+  const requestedCount = isMiniVersion ? MINI_CHAT_HISTORY_COUNT : count;
+  const hasMoreMessages = !messages || messages.length >= requestedCount;
+  const canLoadMore = hasMoreMessages;
+
+  const getReactionTargetId = (msg: Record<string, unknown>): string | undefined => {
+    const quoted = msg.quotedMessage as { stanzaId?: string } | undefined;
+    const templateReply = msg.templateButtonReplyMessage as { stanzaId?: string } | undefined;
+    const ext = msg.extendedTextMessage as
+      | { contextInfo?: { stanzaId?: string; quotedMessage?: { stanzaId?: string } } }
+      | undefined;
+
+    return (
+      quoted?.stanzaId ||
+      templateReply?.stanzaId ||
+      ext?.contextInfo?.stanzaId ||
+      ext?.contextInfo?.quotedMessage?.stanzaId
+    );
+  };
+
+  const getReactionEmoji = (msg: Record<string, unknown>): string | undefined => {
+    const extData = msg.extendedTextMessageData as { text?: string } | undefined;
+    const ext = msg.extendedTextMessage as { text?: string } | undefined;
+    const text = msg.textMessage;
+
+    if (typeof extData?.text === 'string' && extData.text.trim()) return extData.text.trim();
+    if (typeof ext?.text === 'string' && ext.text.trim()) return ext.text.trim();
+    if (typeof text === 'string' && text.trim()) return text.trim();
+    return undefined;
+  };
+
+  const getReactionKeysForMessage = (msg: Record<string, unknown>): string[] => {
+    const keys = new Set<string>();
+    const addKey = (value: unknown) => {
+      if (typeof value === 'string') {
+        const normalized = value.trim();
+        if (normalized) keys.add(normalized);
+      }
+    };
+
+    const idMessage = msg.idMessage;
+    addKey(idMessage);
+
+    const ext = msg.extendedTextMessage as { stanzaId?: string } | undefined;
+    addKey(ext?.stanzaId);
+
+    const quoted = msg.quotedMessage as { stanzaId?: string } | undefined;
+    addKey(quoted?.stanzaId);
+
+    const templateReply = msg.templateButtonReplyMessage as { stanzaId?: string } | undefined;
+    addKey(templateReply?.stanzaId);
+
+    return Array.from(keys);
+  };
 
   const formattedMessages = useMemo(() => {
     if (!messages) return [];
 
-    const visible = messages.filter(
-      (msg) =>
-        msg.typeMessage !== 'reactionMessage' &&
-        msg.typeMessage !== 'deletedMessage' &&
-        msg.typeMessage !== 'editedMessage'
-    );
+    const allFormatted = formatMessages(messages, resolvedLanguage as LanguageLiteral);
+    const reactionMap = new Map<string, Map<string, string>>();
 
-    const allFormatted = formatMessages(visible, resolvedLanguage as LanguageLiteral);
-
-    const pollUpdateMap = new Map<string, (typeof messages)[number]>();
+    const pollUpdateMap = new Map<
+      string,
+      Map<string, { timestamp: number; selectedOptions: string[] }>
+    >();
 
     for (const msg of allFormatted) {
+      if ('typeMessage' in msg && msg.typeMessage === 'reactionMessage') {
+        const targetId = getReactionTargetId(msg as unknown as Record<string, unknown>);
+        const reaction = getReactionEmoji(msg as unknown as Record<string, unknown>);
+        const senderId =
+          typeof msg.senderId === 'string' && msg.senderId.trim()
+            ? msg.senderId.trim()
+            : msg.type === 'outgoing'
+              ? 'outgoing:self'
+              : undefined;
+        const normalizedTarget = targetId?.trim();
+        if (normalizedTarget && senderId) {
+          const existingReactions = reactionMap.get(normalizedTarget) ?? new Map<string, string>();
+          if (reaction) {
+            existingReactions.set(senderId, reaction);
+          } else {
+            // Empty extendedTextMessageData.text means the sender removed their reaction.
+            existingReactions.delete(senderId);
+          }
+          reactionMap.set(normalizedTarget, existingReactions);
+        }
+        continue;
+      }
+
       if ('typeMessage' in msg && msg.typeMessage === 'pollUpdateMessage') {
         const stanzaId = msg.pollMessageData?.stanzaId;
         if (!stanzaId) continue;
-        const existing = pollUpdateMap.get(stanzaId);
-        if (!existing || msg.timestamp > existing.timestamp) {
-          pollUpdateMap.set(stanzaId, msg);
+        const senderId =
+          typeof msg.senderId === 'string' && msg.senderId.trim()
+            ? msg.senderId.trim()
+            : msg.type === 'outgoing'
+              ? 'outgoing:self'
+              : undefined;
+
+        if (!senderId) continue;
+
+        const senderPhone = getPhoneNumberFromChatId(senderId);
+
+        const selectedOptions =
+          msg.pollMessageData?.votes
+            ?.filter((vote) =>
+              vote.optionVoters.some((voter) => getPhoneNumberFromChatId(voter) === senderPhone)
+            )
+            .map((vote) => vote.optionName) ?? [];
+
+        const updatesBySender = pollUpdateMap.get(stanzaId) ?? new Map();
+        const existing = updatesBySender.get(senderPhone);
+
+        if (!existing || msg.timestamp >= existing.timestamp) {
+          updatesBySender.set(senderPhone, { timestamp: msg.timestamp, selectedOptions });
+          pollUpdateMap.set(stanzaId, updatesBySender);
         }
       }
     }
 
     const processedMessages = allFormatted
       .filter((msg) => {
-        return !('typeMessage' in msg) || msg.typeMessage !== 'pollUpdateMessage';
+        return (
+          !('typeMessage' in msg) ||
+          (msg.typeMessage !== 'pollUpdateMessage' &&
+            msg.typeMessage !== 'reactionMessage' &&
+            msg.typeMessage !== 'deletedMessage' &&
+            msg.typeMessage !== 'editedMessage')
+        );
       })
       .map((msg) => {
         if ('typeMessage' in msg && msg.typeMessage === 'pollMessage') {
-          const update = pollUpdateMap.get(msg.idMessage);
-          if (update) {
+          const updatesBySender = pollUpdateMap.get(msg.idMessage);
+          if (updatesBySender) {
+            const votesByOption = new Map<string, Set<string>>();
+
+            for (const option of msg.pollMessageData?.options ?? []) {
+              votesByOption.set(option.optionName, new Set());
+            }
+
+            for (const [senderPhone, update] of updatesBySender.entries()) {
+              for (const selectedOption of update.selectedOptions) {
+                const optionVoters = votesByOption.get(selectedOption) ?? new Set<string>();
+                optionVoters.add(senderPhone);
+                votesByOption.set(selectedOption, optionVoters);
+              }
+            }
+
             return {
               ...msg,
               pollMessageData: {
                 name: msg.pollMessageData?.name ?? '',
                 options: msg.pollMessageData?.options ?? [],
                 multipleAnswers: msg.pollMessageData?.multipleAnswers ?? false,
-                votes: update.pollMessageData?.votes || [],
+                votes: Array.from(votesByOption.entries()).map(([optionName, optionVoters]) => ({
+                  optionName,
+                  optionVoters: Array.from(optionVoters),
+                })),
               },
             };
           }
         }
-        return msg;
+        return {
+          ...msg,
+          reactions:
+            'idMessage' in msg
+              ? (() => {
+                  const aggregated = new Map<string, number>();
+                  for (const key of getReactionKeysForMessage(
+                    msg as unknown as Record<string, unknown>
+                  )) {
+                    const keyReactions = reactionMap.get(key);
+                    if (!keyReactions) continue;
+                    for (const emoji of keyReactions.values()) {
+                      aggregated.set(emoji, (aggregated.get(emoji) ?? 0) + 1);
+                    }
+                  }
+
+                  return Array.from(aggregated.entries()).map(([emoji, count]) => ({
+                    emoji,
+                    count,
+                  }));
+                })()
+              : undefined,
+        };
       });
 
     return processedMessages;
@@ -186,14 +374,7 @@ const ChatView: FC = () => {
     );
   }
 
-  if (error) {
-    if ('status' in error && error.status === 429) {
-      return (
-        <div className={`chat-view flex-center ${isMiniVersion ? '' : 'full'}`}>
-          <Spin size="large" />
-        </div>
-      );
-    }
+  if (error && !isRateLimitError) {
     return (
       <div className={`chat-view flex-center ${isMiniVersion ? '' : 'full'}`}>
         <Empty description={getErrorMessage(error, t)} />
@@ -201,13 +382,23 @@ const ChatView: FC = () => {
     );
   }
 
+  if (isRateLimitError && !messages) {
+    return (
+      <div className={`chat-view flex-center ${isMiniVersion ? '' : 'full'}`}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
   return (
     <div className={`chat-view ${isMiniVersion ? '' : 'full'}`} ref={chatViewRef}>
-      {hasMore ? (
+      {isRateLimitError ? null : canLoadMore ? (
         <div style={{ textAlign: 'center', padding: '12px 0' }}>
           <Button onClick={handleLoadMore}>{t('LOAD_MORE_MESSAGES')}</Button>
         </div>
       ) : (
+        // No 200-message cap: a history shorter than requested means both sources
+        // (Green + the middleware's archive, REQ-0024) are exhausted.
         <div style={{ textAlign: 'center', padding: '12px 0', opacity: 0.6 }}>
           {t('CHAT_HISTORY_START')}
         </div>
@@ -334,6 +525,7 @@ const ChatView: FC = () => {
               typeMessage,
               textMessage: getTextMessage(message),
               senderName: message.type === 'outgoing' ? t('YOU_SENDER_NAME') : message.senderName!,
+              senderType: message.senderType,
               phone: message.senderId && getPhoneNumberFromChatId(message.senderId),
               isLastMessage: idx === formattedMessages.length - 1,
               timestamp: message.timestamp,
@@ -342,12 +534,14 @@ const ChatView: FC = () => {
               statusMessage: message.statusMessage,
               quotedMessage: message.quotedMessage,
               templateMessage: templateMessage,
+              extendedTextMessage: message.extendedTextMessage,
               interactiveButtonsMessage: interactiveButtonsMessage,
               caption: message.caption,
               fileName: message.fileName,
               isDeleted: message.isDeleted,
               isEdited: message.isEdited,
               pollMessageData: message.pollMessageData,
+              reactions: 'reactions' in message ? message.reactions : undefined,
             }}
           />
         );

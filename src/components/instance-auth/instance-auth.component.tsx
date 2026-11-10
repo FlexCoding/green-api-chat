@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 import { Form, InputNumber, Button, Typography, Tabs, Flex } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -26,8 +26,11 @@ import {
   useLazyLastMessagesQuery,
 } from 'services/green-api/endpoints';
 import { selectInstance } from 'store/slices/instances.slice';
-import { StateInstanceEnum } from 'types';
-import { fillJsxString, fillString } from 'utils';
+import { fillJsxString, fillString, isAuthorizedInstanceState } from 'utils';
+
+const LAST_MESSAGES_RETRY_LIMIT = 10;
+const LAST_MESSAGES_RETRY_INTERVAL = 3000;
+const LAST_MESSAGES_ERROR_RETRY_INTERVAL = 5000;
 
 export const AuthInstance = () => {
   const { t, i18n } = useTranslation();
@@ -37,8 +40,9 @@ export const AuthInstance = () => {
   const [phone, setPhone] = useState('');
   const [showCodeInstruction, setShowCodeInstruction] = useState(false);
   const selectedInstance = useAppSelector(selectInstance);
+  const isRetryingLastMessagesRef = useRef(false);
 
-  const { setIsAuthorizingInstance } = useActions();
+  const { setIsAuthorizingInstance, setIsLastMessagesSyncingAfterAuthorization } = useActions();
 
   const isMax = useIsMaxInstance();
 
@@ -77,37 +81,64 @@ export const AuthInstance = () => {
   const [updateStateInstanceTrigger, { data: stateInstanceData }] = useLazyGetStateInstanceQuery();
 
   const refetch = isMax ? maxRefetch : waRefetch;
-  const stateInstance = isMax ? maxData?.stateInstance : settings?.stateInstance;
+  const stateInstance = maxData?.stateInstance ?? settings?.stateInstance;
 
-  const onAuthorized = () => {
-    refetch();
-    setIsAuthorizingInstance(false);
+  const startLastMessagesRetry = () => {
+    if (isRetryingLastMessagesRef.current) return;
 
-    const fetchChatsWithRetry = async () => {
+    const instanceCredentials = {
+      idInstance: selectedInstance.idInstance,
+      instanceUrl: selectedInstance.instanceUrl,
+      sessionId: selectedInstance.sessionId,
+      orgId: selectedInstance.orgId,
+    };
+
+    isRetryingLastMessagesRef.current = true;
+    setIsLastMessagesSyncingAfterAuthorization(true);
+
+    const finishRetry = () => {
+      isRetryingLastMessagesRef.current = false;
+      setIsLastMessagesSyncingAfterAuthorization(false);
+    };
+
+    const fetchChatsWithRetry = async (attempt = 1) => {
       try {
         const result = await fetchChats({
-          idInstance: selectedInstance.idInstance,
-          // apiTokenInstance: selectedInstance.apiTokenInstance,
-          // apiUrl: selectedInstance.apiUrl,
-          // mediaUrl: selectedInstance.mediaUrl,
-          instanceUrl: selectedInstance.instanceUrl,
-          sessionId: selectedInstance.sessionId,
-          orgId: selectedInstance.orgId,
+          ...instanceCredentials,
           allMessages: true,
+          // Our customQuery widens the window adaptively for quiet orgs; a fixed
+          // 18-day window here would also split the cache from the chat list's.
           minutesToRefetch: 2880,
         }).unwrap();
 
         if (Array.isArray(result) && result.length > 0) {
+          finishRetry();
           return;
         }
 
-        setTimeout(() => fetchChatsWithRetry(), 3000);
-      } catch (error) {
-        setTimeout(() => fetchChatsWithRetry(), 5000);
+        if (attempt >= LAST_MESSAGES_RETRY_LIMIT) {
+          finishRetry();
+          return;
+        }
+
+        setTimeout(() => fetchChatsWithRetry(attempt + 1), LAST_MESSAGES_RETRY_INTERVAL);
+      } catch {
+        if (attempt >= LAST_MESSAGES_RETRY_LIMIT) {
+          finishRetry();
+          return;
+        }
+
+        setTimeout(() => fetchChatsWithRetry(attempt + 1), LAST_MESSAGES_ERROR_RETRY_INTERVAL);
       }
     };
 
     fetchChatsWithRetry();
+  };
+
+  const onAuthorized = () => {
+    refetch();
+    setIsAuthorizingInstance(false);
+    startLastMessagesRetry();
   };
 
   const { openQrWebsocket, qrData, qrText, isQrLoading, isQrError } = useQrWebsocket(
@@ -139,11 +170,12 @@ export const AuthInstance = () => {
 
     const interval = setInterval(updateStateInstance, 7000);
 
-    if (stateInstanceData?.stateInstance === StateInstanceEnum.Authorized && showCodeInstruction) {
+    if (isAuthorizedInstanceState(stateInstanceData?.stateInstance) && showCodeInstruction) {
       setShowCodeInstruction(false);
       setPhone('');
       refetch();
       setIsAuthorizingInstance(false);
+      startLastMessagesRetry();
     }
 
     return () => {
@@ -208,7 +240,7 @@ export const AuthInstance = () => {
     });
   };
 
-  if (stateInstance === StateInstanceEnum.Authorized || isMax) {
+  if (isAuthorizedInstanceState(stateInstance) || isMax) {
     return null;
   }
 
@@ -234,10 +266,8 @@ export const AuthInstance = () => {
               showQrError={showQrError}
               setShowQrError={setShowQrError}
               onRefreshQr={() => {
-                openQrWebsocket({
-                  idInstance: selectedInstance.idInstance.toString(),
-                  apiTokenInstance: selectedInstance.apiTokenInstance,
-                });
+                // The middleware opens the Green QR socket with the org's token.
+                openQrWebsocket({});
                 setShowQrError(false);
               }}
               onSwitchToPhone={() => setActiveAuthorizationTabKey('code')}
@@ -308,8 +338,8 @@ const QrAuthorization = ({
     i18n.resolvedLanguage === 'ru'
       ? EXTERNAL_LINKS.freeDeveloperAccountTutorial.rutube
       : EXTERNAL_LINKS.freeDeveloperAccountTutorial[
-      i18n.resolvedLanguage as keyof typeof EXTERNAL_LINKS.freeDeveloperAccountTutorial
-      ] || EXTERNAL_LINKS.freeDeveloperAccountTutorial.default;
+          i18n.resolvedLanguage as keyof typeof EXTERNAL_LINKS.freeDeveloperAccountTutorial
+        ] || EXTERNAL_LINKS.freeDeveloperAccountTutorial.default;
 
   return (
     <div className="qr">

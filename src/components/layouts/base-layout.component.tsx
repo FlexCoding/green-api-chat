@@ -5,9 +5,9 @@ import i18n from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 
-import emptyAvatar from '../../assets/emptyAvatar.svg';
-import emptyAvatarButAvailable from 'assets/emptyAvatarButAvailable.svg';
-import emptyAvatarGroup from 'assets/emptyAvatarGroup.png';
+import emptyAvatar from 'assets/avatar/emptyAvatar.svg';
+import emptyAvatarButAvailable from 'assets/avatar/emptyAvatarButAvailable.svg';
+import emptyAvatarGroup from 'assets/avatar/emptyAvatarGroup.png';
 import FullChat from 'components/full-chat/chat.component';
 import MiniChat from 'components/mini-chat/chat.component';
 import { useActions, useAppSelector } from 'hooks';
@@ -74,7 +74,6 @@ const BaseLayout: FC = () => {
     }
   }, []);
 
-
   const handleChatId = async (chatId: string | null) => {
     if (chatId) {
       setType('one-chat-only');
@@ -113,7 +112,9 @@ const BaseLayout: FC = () => {
         });
 
         if (avatarData) {
-          avatar = avatarData.urlAvatar;
+          if (avatarData.urlAvatar) {
+            avatar = avatarData.urlAvatar;
+          }
           if (!avatarData.available && !chatId.includes('g.us')) avatar = emptyAvatar;
         }
       }
@@ -156,7 +157,7 @@ const BaseLayout: FC = () => {
         contactInfo: groupInfo || contactInfo,
       });
     }
-  }
+  };
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
@@ -183,8 +184,9 @@ const BaseLayout: FC = () => {
               // apiTokenInstance: event.data.payload.apiTokenInstance,
               // apiUrl: event.data.payload.apiUrl,
               // mediaUrl: event.data.payload.mediaUrl,
-              
+
               tariff: event.data.payload.tariff,
+              enableCalls: event.data.payload.enableCalls,
               isChatWorking: isChatWorking,
               typeInstance: event.data.payload.typeInstance,
             });
@@ -318,7 +320,9 @@ const BaseLayout: FC = () => {
         });
 
         if (credentialsError || !credentials) {
-          const err = credentialsError as { status?: number; data?: { error?: string } } | undefined;
+          const err = credentialsError as
+            | { status?: number; data?: { error?: string } }
+            | undefined;
           if (err?.status === 403 && err?.data?.error === 'NO_GROUP') {
             // Multi-number org and this user belongs to no WhatsApp group —
             // deliberate block (never guess a number), persistent message.
@@ -346,19 +350,18 @@ const BaseLayout: FC = () => {
         // console.log('type:', type);
         setType('partner-iframe');
         // if (!selectedInstance?.sessionId || selectedInstance?.sessionId !== sessionId) {
-          setSelectedInstance({
-            idInstance: +idInstance,
-            // apiTokenInstance,
-            // apiUrl: apiUrl.endsWith('/') ? apiUrl : apiUrl + '/',
-            // mediaUrl: mediaUrl.endsWith('/') ? mediaUrl : mediaUrl + '/',
-            tariff: TariffsEnum.Business,
-            typeInstance: 'whatsapp',
-            instanceUrl,
-            sessionId,
-            orgId,
-            ownerId,
-
-          });
+        setSelectedInstance({
+          idInstance: +idInstance,
+          // apiTokenInstance,
+          // apiUrl: apiUrl.endsWith('/') ? apiUrl : apiUrl + '/',
+          // mediaUrl: mediaUrl.endsWith('/') ? mediaUrl : mediaUrl + '/',
+          tariff: TariffsEnum.Business,
+          typeInstance: 'whatsapp',
+          instanceUrl,
+          sessionId,
+          orgId,
+          ownerId,
+        });
         // }
         language && i18n.changeLanguage(language);
         brandDescription && setBrandData({ description: brandDescription });
@@ -380,7 +383,8 @@ const BaseLayout: FC = () => {
     const isNotHappyflow = !isHappyflow(searchParams);
 
     const shouldThrowOnMini = isNotAuthorized && !isMiniVersion && isNotPartner && isEventAdded;
-    const shouldThrowOnTab = isNotAuthorized && isNotPartner && isNotIframe && isNotHappyflow && type === 'tab';
+    const shouldThrowOnTab =
+      isNotAuthorized && isNotPartner && isNotIframe && isNotHappyflow && type === 'tab';
 
     if (shouldThrowOnMini || shouldThrowOnTab) {
       throw new Error('NO_INSTANCE_CREDENTIALS');
@@ -390,7 +394,7 @@ const BaseLayout: FC = () => {
   if (!isThemeSet && type != 'partner-iframe' && type != 'one-chat-only') return null;
 
   return (
-    <Layout className={`app ${!isMiniVersion ? 'bg' : ''}`}>
+    <Layout className="app">
       <Layout.Content className={`main ${!isMiniVersion ? 'flex-center' : ''}`}>
         {isMiniVersion ? <MiniChat /> : <FullChat />}
       </Layout.Content>

@@ -11,6 +11,9 @@ export interface SendingResponseInterface {
   idMessage: string;
 }
 
+export type DeleteStatusParametersInterface = InstanceInterface &
+  Pick<SendingResponseInterface, 'idMessage'>;
+
 export interface SendingBaseParametersInterface {
   chatId: string;
   message: string;
@@ -42,6 +45,8 @@ export type EditMessageParameters = GetChatInformationParameters & { message: st
 
 export type TypeConnectionMessage = 'outgoing' | 'incoming';
 export type StatusMessage = 'pending' | 'sent' | 'delivered' | 'read';
+export type ChatType = 'user' | 'group' | 'supergroup' | 'channel' | 'bot';
+export type MaxGroupType = 'group' | 'channel';
 export type TypeMessage =
   | 'textMessage'
   | 'imageMessage'
@@ -93,17 +98,21 @@ export interface MessageInterface
   timestamp: number;
   statusMessage?: StatusMessage;
   typeMessage: TypeMessage;
+  chatType?: ChatType;
   senderId?: string;
   senderName?: string;
+  senderType?: ChatType;
   senderContactName?: string;
   textMessage?: string;
   caption?: string;
   contact?: Contact;
   extendedTextMessage?: ExtendedTextMessage;
+  extendedTextMessageData?: ExtendedTextMessageData;
   quotedMessage?: QuotedMessageInterface;
   templateMessage?: TemplateMessageInterface;
   templateButtonReplyMessage?: TemplateButtonReplyMessage;
   interactiveButtons?: InteractiveButtons;
+  editedMessageData?: MessageInterface;
   downloadUrl?: string;
   location?: LocationInterface;
   fileName?: string;
@@ -115,9 +124,13 @@ export interface MessageInterface
   opportunityIds?: string[];
 }
 
-export interface QuotedMessageInterface extends MessageInterface {
+export interface QuotedMessageInterface extends Partial<MessageInterface> {
+  stanzaId: string;
   participant?: string;
-  senderName: string;
+  type?: TypeConnectionMessage;
+  typeMessage?: TypeMessage;
+  isEdited?: boolean;
+  isDeleted?: boolean;
 }
 
 export type GetChatHistoryResponse = MessageInterface[];
@@ -136,6 +149,16 @@ export interface ExtendedTextMessage {
   title: string;
   previewType: string;
   jpegThumbnail: string;
+  mediaType?: 'IMAGE' | 'VIDEO';
+  showAdAttribution?: boolean;
+  sourceId?: string;
+  sourceType?: string;
+  sourceUrl?: string;
+  thumbnailUrl?: string;
+}
+
+export interface ExtendedTextMessageData {
+  text?: string;
 }
 
 export type TemplateMessageInterface = IncomingTemplateMessage | OutgoingTemplateMessage;
@@ -234,6 +257,14 @@ export interface LeaveGroupResponseInterface {
   removeAdmin?: boolean;
 }
 
+export type ReadChatParameters = Pick<SendingBaseParametersInterface, 'chatId'> &
+  InstanceInterface &
+  Partial<SendingResponseInterface>;
+
+export interface ReadChatResponseInterface {
+  setRead: boolean;
+}
+
 export type GetGroupDataResponseInterface =
   | GetGroupDataSuccessResponseInterface
   | GetGroupDataErrorResponse;
@@ -243,11 +274,32 @@ export interface GetGroupDataSuccessResponseInterface
   owner: string;
   subject: string;
   creation: string;
+  description?: string;
   participants: GroupParticipantInterface[];
+  size: number;
   subjectTime: number;
   subjectOwner: string;
   groupInviteLink: string;
+  allowParticipantsSendMessages: boolean;
+  allowParticipantsSendInviteLink?: boolean;
+  allowParticipantsSendMessageHistory?: boolean;
+  allowParticipantsEditGroupSettings?: boolean;
+  allowParticipantsAddMembers?: boolean;
+  isCommunity?: boolean;
+  isCommunityAnnounce?: boolean;
   chatId?: string;
+  // Telegram-specific fields
+  isChannel?: boolean;
+  isSupergroup?: boolean;
+  allowParticipantsSendMedia?: boolean;
+  allowParticipantsSendPolls?: boolean;
+  allowParticipantsSendOtherMessages?: boolean;
+  allowParticipantsAddWebPagePreviews?: boolean;
+  allowParticipantsPinMessages?: boolean;
+  // MAX-specific fields
+  isOfficial?: boolean;
+  isCommentsEnabled?: boolean;
+  type?: MaxGroupType;
 }
 
 export type GetGroupDataErrorResponse = 'Error: item-not-found' | 'Error: forbidden';
@@ -255,6 +307,7 @@ export type GetGroupDataErrorResponse = 'Error: item-not-found' | 'Error: forbid
 export interface GroupParticipantInterface {
   id: string;
   chatId?: string;
+  name?: string;
   isAdmin: boolean;
   isSuperAdmin: boolean;
 }
@@ -267,6 +320,48 @@ export interface CheckWhatsappResponseInterface {
   existsWhatsapp: boolean;
 }
 
+export interface CheckAccountParametersInterface extends CheckWhatsappParametersInterface {
+  username?: string;
+  force?: boolean;
+}
+
+export interface CheckAccountResponseInterface {
+  exist: boolean;
+  chatId: string;
+  fromCache: boolean;
+}
+
+export interface GetContactsParametersInterface extends InstanceInterface {
+  group?: boolean;
+  count?: number;
+}
+
+export interface GetChatsParametersInterface extends InstanceInterface {
+  count?: number;
+}
+
+export interface ContactListItemInterface {
+  chatId?: string;
+  id: string;
+  name: string;
+  contactName?: string;
+  type: 'user' | 'group' | 'supergroup' | 'channel' | 'bot';
+  phoneNumber?: string;
+  newChatId?: string;
+}
+
+export interface UpsertContactPayloadInterface {
+  chatId: string;
+  firstName: string;
+  lastName?: string;
+  saveInAddressbook?: boolean;
+}
+
+export type AddContactParametersInterface = InstanceInterface & UpsertContactPayloadInterface;
+export type EditContactParametersInterface = InstanceInterface & UpsertContactPayloadInterface;
+export type DeleteContactParametersInterface = InstanceInterface &
+  Pick<UpsertContactPayloadInterface, 'chatId'>;
+
 export type RequestWithChatIdParameters = InstanceInterface &
   Pick<SendingBaseParametersInterface, 'chatId'>;
 
@@ -274,6 +369,7 @@ export interface GetAvatarResponseInterface {
   existsWhatsapp: boolean;
   available: boolean;
   urlAvatar: string;
+  base64Avatar?: string;
   reason: 'bad request data' | 'get avatar timeout limit exceeded';
 }
 
@@ -286,13 +382,23 @@ export interface GetContactInfoResponseInterface
   category: string;
   description: string;
   products: ProductInterface[];
-  lastSeen: string | null;
+  lastSeen: string | number | null;
   isArchive: boolean;
   isDisappearing: boolean;
   isBusiness: boolean;
   isMute: boolean;
   messageExpiration: number;
   muteExpiration: number | null;
+  base64Avatar?: string;
+  // MAX/Telegram-specific fields
+  chatType?: string;
+  phoneNumber?: number;
+  phoneNumberTimestamp?: number;
+  // Telegram-specific fields
+  isPremium?: boolean;
+  isVerified?: boolean;
+  isScam?: boolean;
+  username?: string;
 }
 
 interface ProductInterface {
@@ -328,21 +434,25 @@ export interface SendContactParametersInterface
   contact: ContactInterface;
 }
 
-export interface ContactInterface {
-  phoneContact: string;
-  firstName?: string;
-  middleName?: string;
-  lastName?: string;
-  company?: string;
-}
+export type ContactInterface =
+  | {
+      phoneContact: string | number;
+      firstName?: string;
+      middleName?: string;
+      lastName?: string;
+      company?: string;
+    }
+  | {
+      chatId: string;
+    };
 
 export interface SendLocationParametersInterface
   extends InstanceInterface,
     Pick<SendingBaseParametersInterface, 'chatId' | 'quotedMessageId'> {
   nameLocation?: string;
   address?: string;
-  latitude: string;
-  longitude: string;
+  latitude: number;
+  longitude: number;
 }
 
 export interface SendPollParametersInterface
@@ -394,11 +504,16 @@ export interface AppApiErrorResponse {
 export interface UserLoginDataInterface extends Pick<UserInterface, 'login'> {
   password: string;
 }
-export enum TariffsEnum {
+export const enum TariffsEnum {
   Developer = 'DEVELOPER',
   Business = 'BUSINESS',
+  Ultra = 'ULTRA',
+  BusinessMax = 'MAX_BUSINESS',
+  DeveloperMax = 'MAX_DEVELOPER',
   BusinessUSD = 'BUSINESS_USD',
   BusinessKZT = 'BUSINESS_KZT',
+  TelegramDeveloper = 'TELEGRAM_DEVELOPER',
+  TelegramBusiness = 'TELEGRAM_BUSINESS',
 }
 
 export interface ExpandedInstanceInterface extends InstanceInterface {
@@ -425,6 +540,7 @@ export interface GetWaSettingsResponseInterface {
   phone: string;
   deviceId: string;
   chatId?: string;
+  base64Avatar?: string;
 }
 
 export interface GetProfileBaseSettingsResponseInterface<T extends boolean> {
@@ -502,9 +618,46 @@ export interface SendTextStatusInterface extends InstanceInterface {
 
 export interface SendVoiceStatusInterface extends InstanceInterface {
   urlFile: string;
-  backgroundColor?: string;
+  optimisticDownloadUrl?: string;
+  caption?: string;
   fileName: string;
   participants?: string[];
+}
+
+export interface StatusesJournalParametersInterface extends InstanceInterface {
+  minutes?: number;
+}
+
+export interface StatusJournalTextMessage {
+  text: string;
+  backgroundColor?: string;
+  font?: FontType;
+}
+
+export interface StatusJournalItemInterface {
+  type: 'incoming' | 'outgoing';
+  idMessage: string;
+  timestamp: number;
+  typeMessage:
+    | 'extendedTextMessage'
+    | 'imageMessage'
+    | 'videoMessage'
+    | 'audioMessage'
+    | 'deletedMessage';
+  chatId: string;
+  statusMessage?: StatusMessage;
+  sendByApi?: boolean;
+  participants?: string[];
+  senderId?: string;
+  senderName?: string;
+  senderContactName?: string;
+  textMessage?: string;
+  downloadUrl?: string;
+  caption?: string;
+  fileName?: string;
+  jpegThumbnail?: string;
+  mimeType?: string;
+  extendedTextMessage?: StatusJournalTextMessage;
 }
 
 export interface DownloadFileResponseInterface {
@@ -535,6 +688,7 @@ export interface StartAuthorizationResponseInterface {
 
 export interface SendMaxAuthCodeParametersInterface extends InstanceInterface {
   code: string;
+  password?: string;
 }
 
 export type FlagRequest = 'yes' | 'no';
@@ -589,3 +743,20 @@ export type InstanceData = ExpandedGetSettingsInterface &
     | 'typeInstance'
   > &
   Pick<InstanceInterface, 'apiTokenInstance' | 'apiUrl' | 'mediaUrl'>;
+
+export interface QRResponseInterface {
+  type: 'qrCode' | 'error' | 'alreadyLogged' | 'pending_password';
+  message: 'string';
+}
+
+export interface GetChatsResponseInterface {
+  id?: string;
+  chatId: string;
+  name: string;
+  type: ChatType;
+  // MAX/Telegram getChats returns the phone as a number, not a string
+  phoneNumber?: string | number;
+  // only for WhatsApp for now
+  unreadCount?: number;
+  newChatId?: string;
+}

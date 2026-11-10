@@ -1,4 +1,101 @@
-import { GetChatHistoryResponse, MessageInterface, StatusMessage } from 'types';
+import { useLazyGetChatLastMessageQuery } from 'services/green-api/endpoints';
+import {
+  GetChatHistoryParametersInterface,
+  GetChatHistoryResponse,
+  GetChatsResponseInterface,
+  InstanceInterface,
+  MessageInterface,
+  StatusMessage,
+} from 'types';
+
+const CHAT_HISTORY_RETRY_LIMIT = 5;
+const CHAT_HISTORY_RETRY_BASE_DELAY = 1000;
+
+export const isMessage = (message: MessageInterface | null): message is MessageInterface =>
+  message !== null;
+
+export const chatToMessage = (chat: GetChatsResponseInterface): MessageInterface => ({
+  chatId: chat.chatId,
+  chatType: chat.type,
+  idMessage: `chat-${chat.chatId}`,
+  senderName: chat.name,
+  senderContactName: chat.name,
+  timestamp: 0,
+  type: 'incoming',
+  typeMessage: 'textMessage',
+  textMessage: '',
+});
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const getReactionEmoji = (message: MessageInterface): string | undefined =>
+  message.extendedTextMessageData?.text?.trim() ||
+  message.extendedTextMessage?.text?.trim() ||
+  message.textMessage?.trim() ||
+  undefined;
+
+export const fetchChatLastMessage = async (
+  chat: GetChatsResponseInterface,
+  instanceCredentials: InstanceInterface,
+  getChatLastMessage: ReturnType<typeof useLazyGetChatLastMessageQuery>[0]
+): Promise<{ chat: GetChatsResponseInterface; message?: MessageInterface }> => {
+  for (let attempt = 0; attempt <= CHAT_HISTORY_RETRY_LIMIT; attempt++) {
+    const { data: history, error } = await getChatLastMessage({
+      ...instanceCredentials,
+      chatId: chat.chatId,
+      count: 1,
+    });
+
+    if (!error) {
+      const message = history?.[0];
+
+      if (message?.typeMessage === 'reactionMessage') {
+        return { chat, message: { ...message, textMessage: getReactionEmoji(message) } };
+      }
+
+      return { chat, message };
+    }
+
+    const isRateLimited = 'status' in error && error.status === 429;
+
+    if (!isRateLimited || attempt === CHAT_HISTORY_RETRY_LIMIT) {
+      return { chat, message: undefined };
+    }
+
+    await wait(CHAT_HISTORY_RETRY_BASE_DELAY * (attempt + 1));
+  }
+
+  return { chat, message: undefined };
+};
+
+export const loadSequentiallyWithDelay = async <Item, Result>(
+  items: Item[],
+  delayMs: number,
+  worker: (item: Item) => Promise<Result>,
+  shouldStop?: () => boolean
+): Promise<Result[]> => {
+  const results: Result[] = [];
+
+  for (const [index, item] of items.entries()) {
+    if (shouldStop?.()) break;
+
+    results.push(await worker(item));
+
+    if (index < items.length - 1) {
+      await wait(delayMs);
+    }
+  }
+
+  return results;
+};
+
+const getFilteredMessages = (messages: GetChatHistoryResponse): GetChatHistoryResponse =>
+  messages.filter(
+    (message) => message.typeMessage !== 'deletedMessage' && message.typeMessage !== 'editedMessage'
+  );
+
+const getMessageKey = (message: MessageInterface): string =>
+  `${message.chatId}-${message.idMessage || `${message.chatId}-${message.timestamp}`}`;
 
 export function getLastChats(
   lastIncomingMessages: GetChatHistoryResponse,
@@ -9,14 +106,10 @@ export function getLastChats(
     return [];
   }
 
-  const allMessagesFilteredAndSorted = [...lastIncomingMessages, ...lastOutgoingMessages]
-    .filter(
-      (message) =>
-        message.typeMessage !== 'reactionMessage' &&
-        message.typeMessage !== 'deletedMessage' &&
-        message.typeMessage !== 'editedMessage'
-    )
-    .sort((a, b) => b.timestamp - a.timestamp);
+  const allMessagesFilteredAndSorted = getFilteredMessages([
+    ...lastIncomingMessages,
+    ...lastOutgoingMessages,
+  ]).sort((a, b) => b.timestamp - a.timestamp);
 
   const resultMap = new Map<string, MessageInterface>();
 
@@ -95,16 +188,50 @@ export function getAllChats(
   lastIncomingMessages: GetChatHistoryResponse,
   lastOutgoingMessages: GetChatHistoryResponse
 ): GetChatHistoryResponse {
-  const allMessagesFilteredAndSorted = [...lastIncomingMessages, ...lastOutgoingMessages]
-    .filter(
-      (message) =>
-        message.typeMessage !== 'reactionMessage' &&
-        message.typeMessage !== 'deletedMessage' &&
-        message.typeMessage !== 'editedMessage'
-    )
-    .sort((a, b) => b.timestamp - a.timestamp);
+  const allMessagesFilteredAndSorted = getFilteredMessages([
+    ...lastIncomingMessages,
+    ...lastOutgoingMessages,
+  ]).sort((a, b) => b.timestamp - a.timestamp);
 
   return allMessagesFilteredAndSorted;
+}
+
+export function updateAllChats(
+  currentChats: MessageInterface[],
+  lastIncomingMessages: GetChatHistoryResponse,
+  lastOutgoingMessages: GetChatHistoryResponse
+): GetChatHistoryResponse {
+  const updates = getAllChats(lastIncomingMessages, lastOutgoingMessages);
+
+  if (!updates.length) {
+    return getFilteredMessages(currentChats).sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  const mergedMap = new Map<string, MessageInterface>();
+
+  getFilteredMessages(currentChats).forEach((message) => {
+    mergedMap.set(getMessageKey(message), message);
+  });
+
+  updates.forEach((message) => {
+    const key = getMessageKey(message);
+    const existingMessage = mergedMap.get(key);
+
+    if (!existingMessage) {
+      mergedMap.set(key, message);
+      return;
+    }
+
+    if (
+      isStatusUpdateNeeded(existingMessage, message) ||
+      isEditedOrDeletedMessageUpdateNeeded(existingMessage, message) ||
+      message.timestamp > existingMessage.timestamp
+    ) {
+      mergedMap.set(key, message);
+    }
+  });
+
+  return Array.from(mergedMap.values()).sort((a, b) => b.timestamp - a.timestamp);
 }
 
 export const extractTextFromMessage = (msg: MessageInterface): string => {
@@ -148,4 +275,41 @@ export const filterMessagesByText = (
 
 export const isWhatsAppOfficialChat = (chatId: string): boolean => {
   return chatId === '0@c.us';
+};
+
+type QueryStateData = {
+  endpointName?: string;
+  originalArgs?: unknown;
+  data?: unknown;
+};
+
+const isSameInstance = (
+  originalArgs: Partial<GetChatHistoryParametersInterface>,
+  instanceCredentials: Partial<InstanceInterface>
+): boolean =>
+  originalArgs.idInstance === instanceCredentials.idInstance &&
+  originalArgs.orgId === instanceCredentials.orgId &&
+  originalArgs.instanceUrl === instanceCredentials.instanceUrl;
+
+export const getCachedGetChatHistoryMessages = (
+  queries: Record<string, QueryStateData | undefined> | undefined,
+  instanceCredentials: Partial<InstanceInterface>
+): MessageInterface[] => {
+  if (!queries) return [];
+
+  return Object.values(queries).flatMap((query) => {
+    if (!query) return [];
+
+    if (query.endpointName !== 'getChatHistory') return [];
+
+    const originalArgs = query.originalArgs as Partial<GetChatHistoryParametersInterface>;
+
+    if (!originalArgs || !isSameInstance(originalArgs, instanceCredentials)) {
+      return [];
+    }
+
+    if (!Array.isArray(query.data)) return [];
+
+    return query.data as MessageInterface[];
+  });
 };

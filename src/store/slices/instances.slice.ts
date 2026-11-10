@@ -2,39 +2,43 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import { RootState } from 'store';
 import { GetWaSettingsResponseInterface, InstancesState, TariffsEnum, TypeInstance } from 'types';
+import { getTypeInstanceFromQuery } from 'utils';
 
 const getInitialStateFromStorage = (): Partial<InstancesState> | null => {
   try {
     const params = new URLSearchParams(window.location.search);
 
     const idInstance = params.get('idInstance');
+    // Our embed passes instanceUrl + sessionId + orgId; the Green API token never
+    // reaches the client (the middleware resolves it per org/group).
     const instanceUrl = params.get('instanceUrl');
     const sessionId = params.get('sessionId');
     const orgId = params.get('orgId');
-    // const apiTokenInstance = params.get('apiTokenInstance');
-    // const apiUrl = params.get('apiUrl');
-    // const mediaUrl = params.get('mediaUrl');
+    const typeInstanceFromQuery = params.get('typeInstance') ?? params.get('instanceType');
 
     const initialStateFromStorage = localStorage.getItem('selectedInstance');
     const parsed = initialStateFromStorage
       ? (JSON.parse(initialStateFromStorage) as Partial<InstancesState>)
       : {};
 
-    const selectedInstance =
-      idInstance && instanceUrl && sessionId && orgId
-        ? {
-            idInstance: Number(idInstance),
-            instanceUrl,
-            sessionId,
-            orgId,
-          }
-        : parsed.selectedInstance ?? undefined;
+    const isQueryCredentialsProvided = !!(idInstance && instanceUrl && sessionId && orgId);
+    const selectedInstance = isQueryCredentialsProvided
+      ? {
+          idInstance: Number(idInstance),
+          instanceUrl,
+          sessionId,
+          orgId,
+        }
+      : parsed.selectedInstance ?? undefined;
 
     return {
       selectedInstance,
       tariff: parsed.tariff,
+      enableCalls: parsed.enableCalls ?? false,
       isChatWorking: parsed.isChatWorking ?? null,
-      typeInstance: parsed.typeInstance ?? 'whatsapp',
+      typeInstance: isQueryCredentialsProvided
+        ? getTypeInstanceFromQuery(typeInstanceFromQuery)
+        : (parsed.typeInstance as TypeInstance) ?? 'whatsapp',
       instanceList: parsed.instanceList ?? null,
     };
   } catch {
@@ -53,11 +57,14 @@ const initialState: InstancesState & { waSettings: GetWaSettingsResponseInterfac
     orgId: '',
   },
   tariff: TariffsEnum.Developer,
+  enableCalls: false,
   isChatWorking: null,
   typeInstance: 'whatsapp',
   instanceList: null,
   isAuthorizingInstance: false,
   waSettings: null,
+  isSendingStatus: null,
+  isLastMessagesSyncingAfterAuthorization: false,
   ...getInitialStateFromStorage(),
 };
 
@@ -70,15 +77,22 @@ export const instancesSlice = createSlice({
       action: PayloadAction<
         InstancesState['selectedInstance'] & {
           tariff: TariffsEnum;
+          enableCalls?: boolean;
           typeInstance: TypeInstance;
           isChatWorking?: boolean | null;
           // oppId?: string | undefined;
         }
       >
     ) => {
-      const { tariff, isChatWorking, typeInstance, ...selectedInstance } = action.payload;
+      const { tariff, enableCalls, isChatWorking, typeInstance, ...selectedInstance } =
+        action.payload;
+
       state.selectedInstance = selectedInstance;
       state.tariff = tariff;
+
+      if (enableCalls !== undefined) {
+        state.enableCalls = enableCalls;
+      }
 
       if (isChatWorking !== undefined) {
         state.isChatWorking = isChatWorking;
@@ -87,6 +101,8 @@ export const instancesSlice = createSlice({
       if (typeInstance) {
         state.typeInstance = typeInstance;
       }
+
+      state.isLastMessagesSyncingAfterAuthorization = false;
     },
     setIsChatWorking: (state, action: PayloadAction<InstancesState['isChatWorking']>) => {
       state.isChatWorking = action.payload;
@@ -105,6 +121,15 @@ export const instancesSlice = createSlice({
     setWaSettings: (state, action: PayloadAction<GetWaSettingsResponseInterface | null>) => {
       state.waSettings = action.payload;
     },
+    setIsSendingStatus: (state, action: PayloadAction<InstancesState['isSendingStatus']>) => {
+      state.isSendingStatus = action.payload;
+    },
+    setIsLastMessagesSyncingAfterAuthorization: (
+      state,
+      action: PayloadAction<InstancesState['isLastMessagesSyncingAfterAuthorization']>
+    ) => {
+      state.isLastMessagesSyncingAfterAuthorization = action.payload;
+    },
   },
 });
 
@@ -115,7 +140,11 @@ export const selectInstance = (state: RootState) => state.instancesReducer.selec
 export const selectInstanceList = (state: RootState) => state.instancesReducer.instanceList;
 export const selectTypeInstance = (state: RootState) => state.instancesReducer.typeInstance;
 export const selectInstanceTariff = (state: RootState) => state.instancesReducer.tariff;
+export const selectEnableCalls = (state: RootState) => state.instancesReducer.enableCalls;
 export const selectIsChatWorking = (state: RootState) => state.instancesReducer.isChatWorking;
 export const selectIsAuthorizingInstance = (state: RootState) =>
   state.instancesReducer.isAuthorizingInstance;
 export const selectWaSettings = (state: RootState) => state.instancesReducer.waSettings;
+export const selectIsSendingStatus = (state: RootState) => state.instancesReducer.isSendingStatus;
+export const selectIsLastMessagesSyncingAfterAuthorization = (state: RootState) =>
+  state.instancesReducer.isLastMessagesSyncingAfterAuthorization;

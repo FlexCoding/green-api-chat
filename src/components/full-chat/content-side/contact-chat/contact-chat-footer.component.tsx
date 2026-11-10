@@ -1,29 +1,30 @@
 import { FC } from 'react';
 
-import { Flex, Typography } from 'antd';
-import { useTranslation } from 'react-i18next';
-
+import CantSendInChatAlert from 'components/alerts/cant-send-in-chat-alert.component';
 import ChatForm from 'components/forms/chat-form.component';
 import { useAppSelector } from 'hooks';
 import { useIsMaxInstance } from 'hooks/use-is-max-instance';
 import { selectActiveChat } from 'store/slices/chat.slice';
 import { ActiveChat } from 'types';
+import { isChannelChatType } from 'utils';
 
 const ContactChatFooter: FC = () => {
   const activeChat = useAppSelector(selectActiveChat) as ActiveChat;
 
-  const { t } = useTranslation();
-
   const isMax = useIsMaxInstance();
 
-  if (activeChat.contactInfo === (isMax ? undefined : 'Error: forbidden')) {
-    return (
-      <Flex align="center" justify="center" className="chat-form-container text-center p-10">
-        <Typography.Paragraph style={{ margin: 'initial' }}>
-          {t('CANT_SEND_IN_GROUP')}
-        </Typography.Paragraph>
-      </Flex>
-    );
+  const isNotInMaxGroup = isMax && activeChat.chatId.startsWith('-') && !activeChat.contactInfo;
+
+  if (isChannelChatType(activeChat.chatType)) {
+    return null;
+  }
+
+  if (isNotInMaxGroup || activeChat.contactInfo === 'Error: forbidden') {
+    return <CantSendInChatAlert reason="group" />;
+  }
+
+  if (activeChat.newChatId) {
+    return <CantSendInChatAlert reason="inactive-account" />;
   }
 
   return <ChatForm />;

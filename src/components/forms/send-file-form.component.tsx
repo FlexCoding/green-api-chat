@@ -6,10 +6,10 @@ import { useTranslation } from 'react-i18next';
 
 import UploadOneFile from 'components/UI/upload-one-file.components';
 import { formItemMethodApiLayout } from 'configs';
-import { useActions, useAppDispatch, useAppSelector, useFormWithLanguageValidation } from 'hooks';
+import { useActions, useAppSelector, useFormWithLanguageValidation } from 'hooks';
+import { useIsMaxInstance } from 'hooks/use-is-max-instance';
 import { useSendFileByUploadMutation } from 'services/green-api/endpoints';
-import { journalsGreenApiEndpoints } from 'services/green-api/endpoints/journals.green-api.endpoints';
-import { selectActiveChat, selectMessageCount } from 'store/slices/chat.slice';
+import { selectActiveChat } from 'store/slices/chat.slice';
 import { selectInstance } from 'store/slices/instances.slice';
 import { ActiveChat, SendFileFormValues } from 'types';
 import { getErrorMessage, isApiError } from 'utils';
@@ -17,12 +17,11 @@ import { getErrorMessage, isApiError } from 'utils';
 const SendFileForm: FC = () => {
   const instanceCredentials = useAppSelector(selectInstance);
   const activeChat = useAppSelector(selectActiveChat) as ActiveChat;
-  const messageCount = useAppSelector(selectMessageCount);
 
-  const dispatch = useAppDispatch();
   const { setActiveSendingMode } = useActions();
 
   const { t } = useTranslation();
+  const isMax = useIsMaxInstance();
 
   const [sendFileByUpload, { isLoading }] = useSendFileByUploadMutation();
 
@@ -31,8 +30,11 @@ const SendFileForm: FC = () => {
   const onFinish = async (values: SendFileFormValues) => {
     const body = {
       ...instanceCredentials,
-      ...values,
       chatId: activeChat.chatId,
+      file: values.file,
+      ...(values.fileName ? { fileName: values.fileName } : {}),
+      ...(values.caption ? { caption: values.caption } : {}),
+      ...(!isMax && values.quotedMessageId ? { quotedMessageId: values.quotedMessageId } : {}),
     };
 
     form.setFields([{ name: 'response', errors: [], warnings: [] }]);
@@ -52,41 +54,6 @@ const SendFileForm: FC = () => {
     }
 
     if (data) {
-      const updateChatHistoryThunk = journalsGreenApiEndpoints.util?.updateQueryData(
-        'getChatHistory',
-        {
-          ...instanceCredentials,
-          chatId: activeChat.chatId,
-          count: messageCount,
-        },
-        (draftChatHistory) => {
-          const existingMessage = draftChatHistory.find((msg) => msg.idMessage === data.idMessage);
-          if (existingMessage) {
-            console.log('message already in chat history');
-
-            return;
-          }
-
-          draftChatHistory.push({
-            type: 'outgoing',
-            typeMessage: 'documentMessage', // TODO: check on message type
-            fileName: values.fileName || values.file.name,
-            caption: values.caption,
-            downloadUrl: data.urlFile,
-            timestamp: Math.floor(Date.now() / 1000),
-            senderName: '',
-            senderContactName: '',
-            idMessage: data.idMessage,
-            chatId: activeChat.chatId,
-            statusMessage: 'sent',
-          });
-
-          return draftChatHistory;
-        }
-      );
-
-      dispatch(updateChatHistoryThunk);
-
       form.setFields([{ name: 'response', warnings: [t('SUCCESS_SENDING_MESSAGE')] }]);
 
       setActiveSendingMode(null);
@@ -109,9 +76,11 @@ const SendFileForm: FC = () => {
       <Form.Item name="caption" label={t('DESCRIPTION')}>
         <TextArea placeholder={t('DESCRIPTION')} autoSize={{ minRows: 2, maxRows: 5 }} />
       </Form.Item>
-      <Form.Item name="quotedMessageId" label={t('QUOTED_MESSAGE_ID_LABEL')}>
-        <Input placeholder={t('QUOTED_MESSAGE_ID_LABEL')} />
-      </Form.Item>
+      {!isMax && (
+        <Form.Item name="quotedMessageId" label={t('QUOTED_MESSAGE_ID_LABEL')}>
+          <Input placeholder={t('QUOTED_MESSAGE_ID_LABEL')} />
+        </Form.Item>
+      )}
       <Form.Item
         style={{ marginBottom: 0 }}
         wrapperCol={{

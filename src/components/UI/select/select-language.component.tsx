@@ -1,11 +1,14 @@
-import { GlobalOutlined } from '@ant-design/icons';
 import { Select, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import { LANGUAGES } from 'configs';
+import { MessageEventTypeEnum } from 'types';
 
 const SelectLanguage = () => {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
+  const selectedLanguage = (i18n.resolvedLanguage || i18n.language || 'en')
+    .toLowerCase()
+    .split(/[-_]/)[0];
 
   return (
     <div style={{ display: 'inline-flex' }}>
@@ -13,14 +16,14 @@ const SelectLanguage = () => {
         onSelect={handlerSelect}
         className="selectLanguage"
         size="small"
-        value={i18n.resolvedLanguage}
+        value={selectedLanguage}
         bordered={false}
         showArrow={true}
       >
         {LANGUAGES.map((language) => (
           <Select.Option key={language.name + language.title} value={language.name}>
             <span className="selectLanguage__itemBox">
-              <Typography className="selectLanguage__text">{t(language.title)}</Typography>
+              <Typography className="selectLanguage__text">{language.title}</Typography>
             </span>
           </Select.Option>
         ))}
@@ -30,6 +33,16 @@ const SelectLanguage = () => {
 
   function handlerSelect(value: string) {
     i18n.changeLanguage(value);
+
+    window.parent.postMessage(
+      {
+        type: MessageEventTypeEnum.LOCALE_CHANGE,
+        payload: {
+          locale: value,
+        },
+      },
+      '*'
+    );
   }
 };
 

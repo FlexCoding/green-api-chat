@@ -1,18 +1,21 @@
 import { FC, useEffect, useMemo } from 'react';
 
-import { Button, Flex, List, Skeleton } from 'antd';
+import { Badge, Button, Flex, List, Skeleton, Space } from 'antd';
 import { useTranslation } from 'react-i18next';
 
-import emptyAvatar from 'assets/emptyAvatar.svg';
-import emptyAvatarButAvailable from 'assets/emptyAvatarButAvailable.svg';
+import emptyAvatar from 'assets/avatar/emptyAvatar.svg';
+import emptyAvatarButAvailable from 'assets/avatar/emptyAvatarButAvailable.svg';
+import emptyAvatarGroup from 'assets/avatar/emptyAvatarGroup.png';
+import waChatIcon from 'assets/messenger-logo/wa-chat.svg';
 import OpportunityIcon from 'assets/opportunity.svg?react';
-import emptyAvatarGroup from 'assets/emptyAvatarGroup.png';
-import waChatIcon from 'assets/wa-chat.svg';
+import CallButton from 'components/shared/call-button.component';
 import AvatarImage from 'components/UI/avatar-image.component';
 import { useActions, useAppSelector } from 'hooks';
 import { useIsMaxInstance } from 'hooks/use-is-max-instance';
+import { useIsTelegramInstance } from 'hooks/use-is-telegram-instance';
 import {
   useGetAvatarQuery,
+  useGetChatsQuery,
   useGetContactInfoQuery,
   useGetGroupDataQuery,
 } from 'services/green-api/endpoints';
@@ -21,23 +24,40 @@ import { selectInstance } from 'store/slices/instances.slice';
 import { LanguageLiteral, MessageInterface } from 'types';
 import {
   getMessageDate,
+  getFormattedMessage,
   getMessageTypeIcon,
   getPhoneNumberFromChatId,
+  getFirstNonEmptyString,
   getOutgoingStatusMessageIcon,
   getTextMessage,
   isWhatsAppOfficialChat,
+  isBotChatType,
 } from 'utils';
 
 interface ContactListItemProps {
   lastMessage: MessageInterface;
   onNameExtracted?: (chatId: string, name: string) => void;
   showDescription?: boolean;
+  unreadCount?: number;
+  apiUnreadCount?: number;
+  newChatId?: string;
+  onClearUnread?: () => void;
+  isLastMessageLoading?: boolean;
+  showCallButton?: boolean;
 }
+
+const WABA_POOLS = ['7835', '9908'];
 
 const ChatListItem: FC<ContactListItemProps> = ({
   lastMessage,
   onNameExtracted,
   showDescription = true,
+  unreadCount,
+  apiUnreadCount,
+  newChatId,
+  onClearUnread,
+  isLastMessageLoading = false,
+  showCallButton = false,
 }) => {
   const {
     t,
@@ -48,19 +68,31 @@ const ChatListItem: FC<ContactListItemProps> = ({
   const activeChat = useAppSelector(selectActiveChat);
   const { setActiveChat, setSearchQuery } = useActions();
   const isMax = useIsMaxInstance();
+  const isTelegram = useIsTelegramInstance();
+  const isMaxGroup = isMax && lastMessage.chatId?.startsWith('-');
+  const hasMessagePreview = !lastMessage.idMessage.startsWith('chat-');
+
   const messageDate = getMessageDate(
     lastMessage.timestamp * 1000,
     'chatList',
     resolvedLanguage as LanguageLiteral
   );
 
+  const { data: chats } = useGetChatsQuery(
+    { ...instanceCredentials },
+    {
+      skip: !instanceCredentials?.idInstance || !instanceCredentials?.sessionId || !isTelegram,
+    }
+  );
+
   const { data: groupData, isLoading: isGroupDataLoading } = useGetGroupDataQuery(
     {
       ...instanceCredentials,
-      ...(isMax ? { chatId: lastMessage.chatId } : { groupId: lastMessage.chatId }),
+      ...(isMax || isTelegram ? { chatId: lastMessage.chatId } : { groupId: lastMessage.chatId }),
     },
     {
       skip:
+        isTelegram ||
         (!lastMessage.chatId?.includes('g.us') && !lastMessage.chatId?.startsWith('-')) ||
         instanceCredentials?.idInstance.toString().startsWith('7835'),
     }
@@ -90,8 +122,14 @@ const ChatListItem: FC<ContactListItemProps> = ({
   );
 
   const isLoading = isGroupDataLoading || isContactInfoLoading;
+  const isGroupChat = Boolean(
+    lastMessage.chatId?.includes('g.us') || lastMessage.chatId?.startsWith('-')
+  );
 
   const avatar = useMemo<string>(() => {
+    if (isLoading) {
+      return isGroupChat ? emptyAvatarGroup : emptyAvatarButAvailable;
+    }
     if (isMax && !avatarData?.urlAvatar) {
       return emptyAvatarButAvailable;
     }
@@ -106,11 +144,16 @@ const ChatListItem: FC<ContactListItemProps> = ({
     }
 
     return lastMessage.chatId?.includes('g.us') ? emptyAvatarGroup : emptyAvatarButAvailable;
-  }, [contactInfo, avatarData, lastMessage]);
+  }, [isLoading, isGroupChat, contactInfo, avatarData, lastMessage]);
 
   let chatName: string | undefined;
+  const telegramChat = chats?.find((c) => c.chatId === lastMessage.chatId);
+  const isBotChat = isBotChatType(lastMessage.chatType) || isBotChatType(telegramChat?.type);
 
   switch (true) {
+    case Boolean(chats && isTelegram):
+      chatName = telegramChat ? telegramChat.name : lastMessage.chatId;
+      break;
     case typeof groupData === 'object' &&
       groupData !== null &&
       'subject' in groupData &&
@@ -122,13 +165,18 @@ const ChatListItem: FC<ContactListItemProps> = ({
       chatName = lastMessage.chatId;
       break;
 
+    case isMaxGroup && !contactInfo?.contactName && !contactInfo?.name:
+      chatName = lastMessage?.chatId;
+      break;
+
     default:
-      chatName =
-        contactInfo?.contactName ||
-        contactInfo?.name ||
-        lastMessage.senderContactName ||
-        lastMessage.senderName ||
-        getPhoneNumberFromChatId(lastMessage.chatId);
+      chatName = getFirstNonEmptyString(
+        lastMessage.senderContactName,
+        lastMessage.senderName,
+        contactInfo?.contactName,
+        contactInfo?.name,
+        getPhoneNumberFromChatId(lastMessage.chatId)
+      );
   }
 
   useEffect(() => {
@@ -140,18 +188,28 @@ const ChatListItem: FC<ContactListItemProps> = ({
   if (groupData && groupData === 'Error: item-not-found') return null;
 
   const textMessage = getTextMessage(lastMessage);
+  const formattedPreviewMessage = getFormattedMessage(textMessage, {
+    enableMarkdownLinks: isMax || isTelegram,
+    compact: true,
+  });
   const info = contactInfo || groupData;
 
   const handleSelectChat = () => {
     setActiveChat({
       chatId: lastMessage.chatId,
+      chatType: lastMessage.chatType || telegramChat?.type,
       senderName: chatName,
       senderContactName: lastMessage.senderContactName,
       avatar,
       contactInfo: info,
+      newChatId,
     });
 
     setSearchQuery('');
+
+    if (onClearUnread) {
+      onClearUnread();
+    }
   };
 
   const handleOpenOpportunity = (e: React.MouseEvent) => {
@@ -164,23 +222,25 @@ const ChatListItem: FC<ContactListItemProps> = ({
     }
   };
 
+  const canShowCallButton = showCallButton && !isGroupChat;
+
   return (
     <List.Item
       className={`list-item contact-list__item ${activeChat?.chatId === lastMessage.chatId ? 'active' : ''}`}
       onClick={handleSelectChat}
       title={avatar === emptyAvatar ? t('BLOCKED_OR_PRIVATE_CHAT') : undefined}
     >
-      <Skeleton avatar title={false} loading={isLoading} active>       
-          <Flex align="start" gap={8} style={{ marginLeft: 12 }}>
-            <Button
-              type="default"
-              size="large"
-              icon={<OpportunityIcon style={{ width: 36, height: 36 }} />}
-              disabled={!lastMessage.opportunityIds?.length}
-              onClick={handleOpenOpportunity}
-              className="opportunity-btn"
-            />
-          </Flex>        
+      <>
+        <Flex align="start" gap={8} style={{ marginLeft: 12 }}>
+          <Button
+            type="default"
+            size="large"
+            icon={<OpportunityIcon style={{ width: 36, height: 36 }} />}
+            disabled={!lastMessage.opportunityIds?.length}
+            onClick={handleOpenOpportunity}
+            className="opportunity-btn"
+          />
+        </Flex>
         <List.Item.Meta
           avatar={
             <AvatarImage
@@ -189,18 +249,26 @@ const ChatListItem: FC<ContactListItemProps> = ({
             />
           }
           title={
-            <h6
-            className="text-overflow message-signerData"
-              // dir="auto" isolates numeric-only names (raw chatIds) so RTL layout
-              // doesn't visually glue them onto the adjacent date.
-              dir="auto"
-              style={{ fontSize: 14, maxWidth: 280 }}
-            >
-              {isWhatsAppOfficialChat(lastMessage.chatId) ? 'WhatsApp' : chatName}
-            </h6>
+            <Flex vertical gap={0}>
+              <span
+                className="text-overflow message-signerData"
+                // dir="auto" isolates numeric-only names (raw chatIds) so RTL layout
+                // doesn't visually glue them onto the adjacent date.
+                dir="auto"
+                style={{ fontSize: 14, maxWidth: 280 }}
+              >
+                {isWhatsAppOfficialChat(lastMessage.chatId) ? 'WhatsApp' : chatName}
+              </span>
+              {isBotChat && (
+                <span className="message-signerData" style={{ fontSize: 12, opacity: 0.7 }}>
+                  {t('BOT_LABEL')}
+                </span>
+              )}
+            </Flex>
           }
           description={
-            showDescription && (
+            showDescription &&
+            (hasMessagePreview ? (
               <Flex align="center" gap={5}>
                 {lastMessage.statusMessage &&
                   getOutgoingStatusMessageIcon(lastMessage.statusMessage, {
@@ -208,21 +276,66 @@ const ChatListItem: FC<ContactListItemProps> = ({
                     height: 20,
                   })}
                 {getMessageTypeIcon(lastMessage.typeMessage)}
-                {lastMessage.isDeleted ? (
+                {lastMessage.isDeleted || lastMessage.typeMessage === 'deletedMessage' ? (
                   <i>{t('DELETED_MESSAGE')}</i>
                 ) : (
-                  <span className="text-overflow" style={{ width: 300 }}>
-                    {textMessage}
+                  <span className="text-overflow" style={{ flex: '1 1 auto', minWidth: 0 }}>
+                    {formattedPreviewMessage}
                   </span>
                 )}
               </Flex>
-            )
+            ) : (
+              isLastMessageLoading && (
+                <Skeleton.Input active size="small" style={{ width: 180, height: 16 }} />
+              )
+            ))
           }
         />
-        {showDescription && (
-          <span style={{ textAlign: 'end', alignSelf: 'start' }}>{messageDate}</span>
+        {(canShowCallButton || (showDescription && hasMessagePreview)) && (
+          <Flex vertical align="end" style={{ alignSelf: 'start' }} gap={4}>
+            {showDescription && hasMessagePreview && (
+              <span style={{ textAlign: 'end' }}>{messageDate}</span>
+            )}
+            <Space>
+              {canShowCallButton && (
+                <CallButton
+                  pendingCall={{
+                    chatId: lastMessage.chatId,
+                    phone: getPhoneNumberFromChatId(lastMessage.chatId),
+                    name: chatName,
+                    avatar,
+                  }}
+                />
+              )}
+              {showDescription &&
+                hasMessagePreview &&
+                (typeof apiUnreadCount === 'number' && apiUnreadCount > 0 ? (
+                  <Badge
+                    count={apiUnreadCount}
+                    style={{
+                      backgroundColor: 'var(--primary-color)',
+                      boxShadow: '0 0 0 1px #fff',
+                      textAlign: 'center',
+                    }}
+                  />
+                ) : (
+                  unreadCount &&
+                  unreadCount > 0 &&
+                  WABA_POOLS.includes(instanceCredentials.idInstance.toString().slice(0, 4)) && (
+                    <Badge
+                      count={unreadCount}
+                      style={{
+                        backgroundColor: 'var(--primary-color)',
+                        boxShadow: '0 0 0 1px #fff',
+                        textAlign: 'center',
+                      }}
+                    />
+                  )
+                ))}
+            </Space>
+          </Flex>
         )}
-      </Skeleton>
+      </>
     </List.Item>
   );
 };

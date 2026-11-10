@@ -4,6 +4,8 @@ import { Space } from 'antd';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 
+import AdMessage from './ad-message.component';
+import AudioMessage from './audio-message.component';
 import FileMessage from './file-message.component';
 import MessageErrorBoundary from './message-error-boundary.component';
 import MessageSenderInfo from './message-sender-info.component';
@@ -27,6 +29,7 @@ const Message: FC<MessageProps> = ({ messageDataForRender, preview }) => {
     textMessage,
     type,
     senderName,
+    senderType,
     showSenderName,
     timestamp,
     jsonMessage,
@@ -38,11 +41,13 @@ const Message: FC<MessageProps> = ({ messageDataForRender, preview }) => {
     quotedMessage,
     templateMessage,
     interactiveButtonsMessage,
+    extendedTextMessage,
     caption,
     fileName,
     isDeleted,
     isEdited,
     pollMessageData,
+    reactions,
   } = messageDataForRender;
 
   const isMiniVersion = useAppSelector(selectMiniVersion);
@@ -63,7 +68,6 @@ const Message: FC<MessageProps> = ({ messageDataForRender, preview }) => {
   }, [isLastMessage, isMiniVersion]);
 
   const [showDeletedMessage, setShowDeletedMessage] = useState(false);
-
   let messageBody;
 
   try {
@@ -102,6 +106,12 @@ const Message: FC<MessageProps> = ({ messageDataForRender, preview }) => {
           <TemplateMessage templateMessage={templateMessage} type={type} />
         </MessageErrorBoundary>
       );
+    } else if (typeMessage === 'audioMessage' && downloadUrl && !isMiniVersion) {
+      messageBody = (
+        <MessageErrorBoundary type={type} jsonMessage={jsonMessage}>
+          <AudioMessage downloadUrl={downloadUrl} type={type} />
+        </MessageErrorBoundary>
+      );
     } else if (downloadUrl && typeMessage !== 'stickerMessage' && !isMiniVersion) {
       messageBody = (
         <FileMessage
@@ -126,6 +136,8 @@ const Message: FC<MessageProps> = ({ messageDataForRender, preview }) => {
     );
   }
 
+  const isAdMsg = extendedTextMessage && extendedTextMessage.sourceType === 'ad';
+
   return (
     <div
       ref={messageRef}
@@ -144,6 +156,7 @@ const Message: FC<MessageProps> = ({ messageDataForRender, preview }) => {
             marginTop: interactiveButtonsMessage ? 10 : 0,
           }}
           senderName={senderName}
+          senderType={senderType}
           phone={phone}
         />
       )}
@@ -153,6 +166,14 @@ const Message: FC<MessageProps> = ({ messageDataForRender, preview }) => {
           messageDataForRender={messageDataForRender}
           quotedMessage={quotedMessage}
           type={type}
+        />
+      )}
+
+      {isAdMsg && (
+        <AdMessage
+          sourceUrl={extendedTextMessage.sourceUrl}
+          description={extendedTextMessage.description}
+          thumbnailUrl={extendedTextMessage.thumbnailUrl}
         />
       )}
 
@@ -185,6 +206,19 @@ const Message: FC<MessageProps> = ({ messageDataForRender, preview }) => {
         <span style={{ fontSize: 13 }}>{messageDate}</span>
         {getOutgoingStatusMessageIcon(statusMessage)}
       </Space>
+
+      {!!reactions?.length && (
+        <span className={clsx('reaction-message', type === 'outgoing' && 'outgoing')}>
+          {reactions.map((reaction) => (
+            <span key={reaction.emoji} className="reaction-message__item">
+              {reaction.emoji}
+              {reaction.count > 1 ? (
+                <span className="reaction-message__count">{reaction.count}</span>
+              ) : null}
+            </span>
+          ))}
+        </span>
+      )}
     </div>
   );
 };

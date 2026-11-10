@@ -4,10 +4,11 @@ import { Button, Form, Input } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import { formItemMethodApiLayout } from 'configs';
-import { useActions, useAppDispatch, useAppSelector, useFormWithLanguageValidation } from 'hooks';
+import { useActions, useAppSelector, useFormWithLanguageValidation } from 'hooks';
+import { useIsMaxInstance } from 'hooks/use-is-max-instance';
+import { useIsTelegramInstance } from 'hooks/use-is-telegram-instance';
 import { useSendLocationMutation } from 'services/green-api/endpoints';
-import { journalsGreenApiEndpoints } from 'services/green-api/endpoints/journals.green-api.endpoints';
-import { selectActiveChat, selectMessageCount } from 'store/slices/chat.slice';
+import { selectActiveChat } from 'store/slices/chat.slice';
 import { selectInstance } from 'store/slices/instances.slice';
 import { ActiveChat, SendLocationFormValues } from 'types';
 import { getErrorMessage, isApiError } from 'utils';
@@ -15,23 +16,38 @@ import { getErrorMessage, isApiError } from 'utils';
 const SendLocationForm: FC = () => {
   const instanceCredentials = useAppSelector(selectInstance);
   const activeChat = useAppSelector(selectActiveChat) as ActiveChat;
-  const messageCount = useAppSelector(selectMessageCount);
 
-  const dispatch = useAppDispatch();
   const { setActiveSendingMode } = useActions();
 
   const { t } = useTranslation();
+
+  const isMax = useIsMaxInstance();
+  const isTelegram = useIsTelegramInstance();
+  const isTelegramOrMax = isTelegram || isMax;
 
   const [sendLocation, { isLoading }] = useSendLocationMutation();
 
   const [form] = useFormWithLanguageValidation<SendLocationFormValues>();
 
   const onFinish = async (values: SendLocationFormValues) => {
-    const body = {
+    const latitude = Number.parseFloat(values.latitude);
+    const longitude = Number.parseFloat(values.longitude);
+
+    const baseBody = {
       ...instanceCredentials,
-      ...values,
       chatId: activeChat.chatId,
+      latitude,
+      longitude,
     };
+
+    const body = isTelegramOrMax
+      ? baseBody
+      : {
+          ...baseBody,
+          nameLocation: values.nameLocation,
+          address: values.address,
+          quotedMessageId: values.quotedMessageId,
+        };
 
     form.setFields([{ name: 'response', errors: [], warnings: [] }]);
 
@@ -50,42 +66,6 @@ const SendLocationForm: FC = () => {
     }
 
     if (data) {
-      const updateChatHistoryThunk = journalsGreenApiEndpoints.util?.updateQueryData(
-        'getChatHistory',
-        {
-          ...instanceCredentials,
-          chatId: activeChat.chatId,
-          count: messageCount,
-        },
-        (draftChatHistory) => {
-          const existingMessage = draftChatHistory.find((msg) => msg.idMessage === data.idMessage);
-          if (existingMessage) {
-            console.log('message already in chat history');
-
-            return;
-          }
-
-          draftChatHistory.push({
-            type: 'outgoing',
-            typeMessage: 'locationMessage',
-            location: {
-              ...values,
-              jpegThumbnail: '',
-            },
-            timestamp: Math.floor(Date.now() / 1000),
-            senderName: '',
-            senderContactName: '',
-            idMessage: data.idMessage,
-            chatId: activeChat.chatId,
-            statusMessage: 'sent',
-          });
-
-          return draftChatHistory;
-        }
-      );
-
-      dispatch(updateChatHistoryThunk);
-
       form.setFields([{ name: 'response', warnings: [t('SUCCESS_SENDING_MESSAGE')] }]);
 
       setActiveSendingMode(null);
@@ -122,15 +102,19 @@ const SendLocationForm: FC = () => {
       >
         <Input placeholder={t('LONGITUDE_LABEL')} />
       </Form.Item>
-      <Form.Item name="nameLocation" label={t('LOCATION_NAME_LABEL')}>
-        <Input placeholder={t('LOCATION_NAME_LABEL')} />
-      </Form.Item>
-      <Form.Item name="address" label={t('ADDRESS_LABEL')}>
-        <Input placeholder={t('ADDRESS_LABEL')} />
-      </Form.Item>
-      <Form.Item name="quotedMessageId" label={t('QUOTED_MESSAGE_ID_LABEL')}>
-        <Input placeholder={t('QUOTED_MESSAGE_ID_LABEL')} />
-      </Form.Item>
+      {!isTelegramOrMax && (
+        <>
+          <Form.Item name="nameLocation" label={t('LOCATION_NAME_LABEL')}>
+            <Input placeholder={t('LOCATION_NAME_LABEL')} />
+          </Form.Item>
+          <Form.Item name="address" label={t('ADDRESS_LABEL')}>
+            <Input placeholder={t('ADDRESS_LABEL')} />
+          </Form.Item>
+          <Form.Item name="quotedMessageId" label={t('QUOTED_MESSAGE_ID_LABEL')}>
+            <Input placeholder={t('QUOTED_MESSAGE_ID_LABEL')} />
+          </Form.Item>
+        </>
+      )}
       <Form.Item
         style={{ marginBottom: 0 }}
         wrapperCol={{
