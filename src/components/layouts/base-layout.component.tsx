@@ -10,6 +10,7 @@ import emptyAvatarButAvailable from 'assets/avatar/emptyAvatarButAvailable.svg';
 import emptyAvatarGroup from 'assets/avatar/emptyAvatarGroup.png';
 import FullChat from 'components/full-chat/chat.component';
 import MiniChat from 'components/mini-chat/chat.component';
+import UnreadCountBridge from 'components/unread-count-bridge.component';
 import { useActions, useAppSelector } from 'hooks';
 import { useIsMaxInstance } from 'hooks/use-is-max-instance';
 import {
@@ -397,6 +398,7 @@ const BaseLayout: FC = () => {
     <Layout className="app">
       <Layout.Content className={`main ${!isMiniVersion ? 'flex-center' : ''}`}>
         {isMiniVersion ? <MiniChat /> : <FullChat />}
+        <UnreadCountBridge />
       </Layout.Content>
     </Layout>
   );
