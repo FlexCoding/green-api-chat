@@ -11,6 +11,7 @@ import {
   SendContactParametersInterface,
   SendLocationParametersInterface,
   SendPollParametersInterface,
+  SendReactionParametersInterface,
   SendInteractiveButtonsInterface,
   GetChatHistoryParametersInterface,
 } from 'types';
@@ -301,6 +302,58 @@ export const sendingGreenApiEndpoints = greenAPI.injectEndpoints({
         } catch {
           patches.forEach((patch) => patch.undo());
           dispatch(chatActions.setLastMessageByChatId({ chatId, message: previousLastMessage }));
+        }
+      },
+    }),
+    sendReaction: builder.mutation<SendingResponseInterface, SendReactionParametersInterface>({
+      query: ({ instanceUrl, sessionId, orgId, chatId, idMessage, reaction }) => ({
+        url: `${MIDDLEWARE_URL}/sendReaction`,
+        method: 'POST',
+        params: { instanceUrl, sessionId, orgId },
+        body: { chatId, idMessage, reaction },
+      }),
+      // Optimistic: append a reactionMessage to the cached history, the same shape
+      // the chat view already aggregates. The 15s history poll then replaces it
+      // with what Green actually returns.
+      onQueryStarted: async (
+        { idInstance, chatId, idMessage, reaction },
+        { dispatch, getState, queryFulfilled }
+      ) => {
+        const state = getState() as RootState;
+        const tempIdMessage = generateTempMessageId();
+
+        const patches = journalsGreenApiEndpoints.util
+          .selectInvalidatedBy(state, ['chatHistory'])
+          .filter(
+            (entry) =>
+              entry.endpointName === 'getChatHistory' &&
+              (entry.originalArgs as GetChatHistoryParametersInterface).chatId === chatId &&
+              (entry.originalArgs as GetChatHistoryParametersInterface).idInstance === idInstance
+          )
+          .map(({ originalArgs }) =>
+            dispatch(
+              journalsGreenApiEndpoints.util.updateQueryData(
+                'getChatHistory',
+                originalArgs as GetChatHistoryParametersInterface,
+                (draft) => {
+                  draft.push({
+                    type: 'outgoing',
+                    typeMessage: 'reactionMessage',
+                    idMessage: tempIdMessage,
+                    chatId,
+                    timestamp: Math.floor(Date.now() / 1000),
+                    extendedTextMessageData: { text: reaction },
+                    quotedMessage: { stanzaId: idMessage },
+                  });
+                }
+              )
+            )
+          );
+
+        try {
+          await queryFulfilled;
+        } catch {
+          patches.forEach((patch) => patch.undo());
         }
       },
     }),

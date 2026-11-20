@@ -12,9 +12,11 @@ import MessageSenderInfo from './message-sender-info.component';
 import MessageTooltip from './message-tooltip/message-tooltip.component';
 import PollMessage from './poll-message.component';
 import QuotedMessage from './quoted-message.component';
+import ReactionPicker from './reaction-picker.component';
 import TemplateMessage from './template-message/template-message.component';
 import TextMessage from './text-message.component';
 import { useAppSelector } from 'hooks';
+import { useIsWabaInstance } from 'hooks/use-is-waba-instance';
 import { selectMiniVersion } from 'store/slices/chat.slice';
 import { LanguageLiteral, MessageDataForRender } from 'types';
 import { getMessageDate, getOutgoingStatusMessageIcon, isSafari } from 'utils';
@@ -48,9 +50,12 @@ const Message: FC<MessageProps> = ({ messageDataForRender, preview }) => {
     isEdited,
     pollMessageData,
     reactions,
+    myReaction,
+    idMessage,
   } = messageDataForRender;
 
   const isMiniVersion = useAppSelector(selectMiniVersion);
+  const isWaba = useIsWabaInstance();
 
   const {
     t,
@@ -138,10 +143,23 @@ const Message: FC<MessageProps> = ({ messageDataForRender, preview }) => {
 
   const isAdMsg = extendedTextMessage && extendedTextMessage.sourceType === 'ad';
 
+  // Reactions need a real (sent) message id; not on previews or WABA instances.
+  const canReact =
+    !preview && !isWaba && !isDeleted && !!idMessage && !idMessage.startsWith('temp-');
+
   return (
     <div
       ref={messageRef}
-      style={{ maxWidth: isMiniVersion ? 'unset' : 500 }}
+      // canReact: leave room beside the bubble for the hover smiley (no overflow).
+      style={{
+        maxWidth: canReact
+          ? isMiniVersion
+            ? 'calc(100% - 36px)'
+            : 'min(500px, calc(100% - 36px))'
+          : isMiniVersion
+            ? 'unset'
+            : 500,
+      }}
       className={clsx(
         'message',
         type === 'outgoing' ? 'outgoing' : 'incoming',
@@ -206,6 +224,8 @@ const Message: FC<MessageProps> = ({ messageDataForRender, preview }) => {
         <span style={{ fontSize: 13 }}>{messageDate}</span>
         {getOutgoingStatusMessageIcon(statusMessage)}
       </Space>
+
+      {canReact && <ReactionPicker idMessage={idMessage} type={type} myReaction={myReaction} />}
 
       {!!reactions?.length && (
         <span className={clsx('reaction-message', type === 'outgoing' && 'outgoing')}>

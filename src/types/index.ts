@@ -402,6 +402,8 @@ export interface MessageDataForRender {
     emoji: string;
     count: number;
   }[];
+  // The emoji I (this instance) currently have on the message, if any.
+  myReaction?: string;
 }
 
 export interface MessageTooltipMenuData {

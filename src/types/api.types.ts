@@ -455,6 +455,14 @@ export interface SendLocationParametersInterface
   longitude: number;
 }
 
+// Green SendReaction: an empty reaction removes the sender's reaction.
+export interface SendReactionParametersInterface
+  extends InstanceInterface,
+    Pick<SendingBaseParametersInterface, 'chatId'> {
+  idMessage: string;
+  reaction: string;
+}
+
 export interface SendPollParametersInterface
   extends InstanceInterface,
     Pick<SendingBaseParametersInterface, 'chatId' | 'message' | 'quotedMessageId'> {

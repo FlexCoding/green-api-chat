@@ -245,11 +245,13 @@ const ChatView: FC = () => {
       if ('typeMessage' in msg && msg.typeMessage === 'reactionMessage') {
         const targetId = getReactionTargetId(msg as unknown as Record<string, unknown>);
         const reaction = getReactionEmoji(msg as unknown as Record<string, unknown>);
+        // Every outgoing reaction is "mine" (one account): one key, so an optimistic
+        // reaction and Green's copy of it never count twice.
         const senderId =
-          typeof msg.senderId === 'string' && msg.senderId.trim()
-            ? msg.senderId.trim()
-            : msg.type === 'outgoing'
-              ? 'outgoing:self'
+          msg.type === 'outgoing'
+            ? 'outgoing:self'
+            : typeof msg.senderId === 'string' && msg.senderId.trim()
+              ? msg.senderId.trim()
               : undefined;
         const normalizedTarget = targetId?.trim();
         if (normalizedTarget && senderId) {
@@ -338,8 +340,16 @@ const ChatView: FC = () => {
             };
           }
         }
+        const myReaction =
+          'idMessage' in msg
+            ? getReactionKeysForMessage(msg as unknown as Record<string, unknown>)
+                .map((key) => reactionMap.get(key)?.get('outgoing:self'))
+                .find((emoji) => !!emoji)
+            : undefined;
+
         return {
           ...msg,
+          myReaction,
           reactions:
             'idMessage' in msg
               ? (() => {
@@ -542,6 +552,7 @@ const ChatView: FC = () => {
               isEdited: message.isEdited,
               pollMessageData: message.pollMessageData,
               reactions: 'reactions' in message ? message.reactions : undefined,
+              myReaction: 'myReaction' in message ? message.myReaction : undefined,
             }}
           />
         );

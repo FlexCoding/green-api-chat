@@ -29,6 +29,7 @@ export const {
   useSendContactMutation,
   useSendLocationMutation,
   useSendPollMutation,
+  useSendReactionMutation,
   useGetWaSettingsQuery,
   useLazyGetSettingsQuery,
   useSendTemplateMutation,

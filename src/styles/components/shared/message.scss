@@ -140,6 +140,84 @@
   }
 }
 
+// Hover smiley beside the bubble (WhatsApp Web style). Logical insets follow the
+// same direction as the bubble's own alignment, so RTL lands on the inner side too.
+// The padding bridges the gap so the pointer can travel from bubble to icon.
+.message-reaction-trigger {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0 4px;
+  opacity: 0;
+  transition: opacity .15s;
+  z-index: 5;
+
+  &--outgoing {
+    inset-inline-end: 100%;
+  }
+
+  &--incoming {
+    inset-inline-start: 100%;
+  }
+
+  &.open {
+    opacity: 1;
+  }
+
+  @media screen and (hover: none) {
+    opacity: 1;
+  }
+
+  &__button {
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: 50%;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    color: var(--icon-color);
+    background: var(--main-background);
+    box-shadow: 0 1px 1px rgb(0 0 0 / 16%);
+  }
+}
+
+.message:hover > .message-reaction-trigger {
+  opacity: 1;
+}
+
+.message-reaction-popover .ant-popover-inner {
+  padding: 4px 6px;
+  border-radius: 999px;
+}
+
+.message-reaction-picker {
+  display: flex;
+  gap: 2px;
+
+  &__item {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    font-size: 22px;
+    line-height: 1;
+    padding: 5px;
+    border-radius: 50%;
+    transition: transform .1s;
+
+    &:hover {
+      transform: scale(1.2);
+    }
+
+    &.selected {
+      background: rgb(0 0 0 / 10%);
+    }
+  }
+}
+
 .message-code-block {
   position: relative;
   margin: 4px 0;
