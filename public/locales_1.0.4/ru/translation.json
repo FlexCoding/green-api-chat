@@ -303,5 +303,8 @@
   "STATUS_AUDIO_FALLBACK": "Аудио-статус",
   "STATUS_QUOTE_EXCEEDED": "Превышена квота тарифа. Статус не отправлен",
   "STATUS_BULK_NOT_SENT": "Не отправлено {failed} из {total} статусов",
-  "AD_MSG_TITLE": "Сообщение через рекламу"
+  "AD_MSG_TITLE": "Сообщение через рекламу",
+  "ARCHIVE_TITLE": "Архив",
+  "ARCHIVE_CHAT": "Архивировать чат",
+  "UNARCHIVE_CHAT": "Разархивировать чат"
 }

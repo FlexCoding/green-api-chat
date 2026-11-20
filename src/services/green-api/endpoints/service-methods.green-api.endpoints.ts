@@ -5,6 +5,7 @@ import type { RootState } from 'store';
 import { chatActions, selectLastMessagesByChatId } from 'store/slices/chat.slice';
 import {
   AddContactParametersInterface,
+  ArchiveChatParametersInterface,
   CheckWhatsappParametersInterface,
   CheckWhatsappResponseInterface,
   ContactListItemInterface,
@@ -375,6 +376,44 @@ export const serviceMethodsGreenApiEndpoints = greenAPI.injectEndpoints({
           if (isEditingLastMessage) {
             dispatch(chatActions.setLastMessageByChatId({ chatId, message: previousLastMessage }));
           }
+        }
+      },
+    }),
+    // archive=true -> Green archiveChat, false -> unarchiveChat (body: chatId). The flag
+    // is flipped optimistically on every cached getChats; the next poll confirms it.
+    setChatArchive: builder.mutation<void, ArchiveChatParametersInterface>({
+      query: ({ instanceUrl, sessionId, orgId, chatId, archive }) => ({
+        url: `${MIDDLEWARE_URL}/${archive ? 'archiveChat' : 'unarchiveChat'}`,
+        method: 'POST',
+        params: { instanceUrl, sessionId, orgId },
+        body: { chatId },
+      }),
+      onQueryStarted: async ({ chatId, archive }, { dispatch, getState, queryFulfilled }) => {
+        const patches = serviceMethodsGreenApiEndpoints.util
+          .selectInvalidatedBy(getState() as RootState, ['chats'])
+          .filter((entry) => entry.endpointName === 'getChats')
+          .map(({ originalArgs }) =>
+            dispatch(
+              serviceMethodsGreenApiEndpoints.util.updateQueryData(
+                'getChats',
+                originalArgs as GetChatsParametersInterface,
+                (draft) => {
+                  const chat = draft.find((item) => item.chatId === chatId);
+
+                  if (chat) {
+                    chat.archive = archive;
+                  } else if (archive) {
+                    draft.push({ chatId, name: '', type: 'user', archive: true });
+                  }
+                }
+              )
+            )
+          );
+
+        try {
+          await queryFulfilled;
+        } catch {
+          patches.forEach((patch) => patch.undo());
         }
       },
     }),

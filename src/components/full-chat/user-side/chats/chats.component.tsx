@@ -15,7 +15,12 @@ import {
 import { StateInstanceEnum } from 'types';
 import { isAuthorizedInstanceState } from 'utils';
 
-const Chats: FC = () => {
+interface ChatsProps {
+  // The archive folder (aside item 'archive'): same list, archived chats only.
+  archived?: boolean;
+}
+
+const Chats: FC<ChatsProps> = ({ archived = false }) => {
   const type = useAppSelector(selectType);
   const instanceCredentials = useAppSelector(selectInstance);
   const isLastMessagesSyncingAfterAuthorization = useAppSelector(
@@ -37,7 +42,7 @@ const Chats: FC = () => {
       >
         {type !== 'mobile-mode' && (
           <Flex gap={20} align="center">
-            <p style={{ fontSize: '1.5rem' }}>{t('CHAT_HEADER')}</p>
+            <p style={{ fontSize: '1.5rem' }}>{t(archived ? 'ARCHIVE_TITLE' : 'CHAT_HEADER')}</p>
             <AuthorizationStatus />
             {settings?.stateInstance === StateInstanceEnum.NotAuthorized &&
               !isLastMessagesSyncingAfterAuthorization && (
@@ -53,7 +58,10 @@ const Chats: FC = () => {
       {(isAuthorizedInstanceState(settings?.stateInstance) ||
         settings?.stateInstance === StateInstanceEnum.Suspended ||
         isLastMessagesSyncingAfterAuthorization) && (
-        <ChatList key={instanceCredentials?.idInstance} />
+        <ChatList
+          key={`${instanceCredentials?.idInstance}-${archived}`}
+          archived={archived}
+        />
       )}
     </Flex>
   );

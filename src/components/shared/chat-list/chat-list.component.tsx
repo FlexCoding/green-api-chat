@@ -6,8 +6,8 @@ import { useTranslation } from 'react-i18next';
 import ChatListItem from './chat-list-item.component';
 import ChatSearchInput from './chat-search-input.component';
 import { useAppSelector, useMediaQuery } from 'hooks';
+import { useChatsSummary } from 'hooks/use-chats-summary.hook';
 import {
-  useGetChatsQuery,
   useLastMessagesQuery,
   useReadChatMutation,
 } from 'services/green-api/endpoints';
@@ -36,10 +36,14 @@ const { Title } = Typography;
 // with opportunityIds. Upstream's getChats-driven list (plus a per-chat getChatHistory
 // sweep) would bypass that filter, drop the opportunity button, and multiply Green API
 // calls, so it is deliberately not used here.
-const CHATS_UNREAD_COUNT = 100;
-const CHATS_UNREAD_POLLING_INTERVAL = 30000;
 
-const ChatList: FC = () => {
+interface ChatListProps {
+  // true = the archive folder: only chats WhatsApp reports as archived; false = the
+  // main list, which hides them (like WhatsApp itself).
+  archived?: boolean;
+}
+
+const ChatList: FC<ChatListProps> = ({ archived = false }) => {
   const instanceCredentials = useAppSelector(selectInstance);
   const isMiniVersion = useAppSelector(selectMiniVersion);
   const searchQuery = useAppSelector(selectSearchQuery);
@@ -62,14 +66,7 @@ const ChatList: FC = () => {
     }
   );
 
-  const { data: chats } = useGetChatsQuery(
-    { ...instanceCredentials, count: CHATS_UNREAD_COUNT },
-    {
-      skipPollingIfUnfocused: true,
-      pollingInterval: CHATS_UNREAD_POLLING_INTERVAL,
-      skip: !instanceCredentials?.idInstance || !instanceCredentials?.sessionId,
-    }
-  );
+  const { data: chats, archivedChatIds } = useChatsSummary();
   const [readChat] = useReadChatMutation();
 
   // Rate-limit (429) recovery. Polling alone doesn't save us here: with
@@ -117,7 +114,10 @@ const ChatList: FC = () => {
   // only when it is newer and a different message (the polled copy wins once it
   // arrives, carrying the real delivery status). opportunityIds stay from the list.
   const lastMessages = useMemo(() => {
-    const base = getLastChats(allMessages, [], isMiniVersion ? limit : undefined);
+    const inFolder = allMessages.filter(
+      (message) => archivedChatIds.has(message.chatId) === archived
+    );
+    const base = getLastChats(inFolder, [], isMiniVersion ? limit : undefined);
 
     return base
       .map((message) => {
@@ -132,7 +132,7 @@ const ChatList: FC = () => {
         return message;
       })
       .sort((a, b) => b.timestamp - a.timestamp);
-  }, [allMessages, lastMessagesByChatId, isMiniVersion, limit]);
+  }, [allMessages, lastMessagesByChatId, isMiniVersion, limit, archivedChatIds, archived]);
 
   const filteredContacts = filterContacts(allMessages, contactNames, searchQuery);
   const filteredMessages = filterMessagesByText(allMessages, searchQuery);

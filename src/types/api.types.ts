@@ -455,6 +455,12 @@ export interface SendLocationParametersInterface
   longitude: number;
 }
 
+export interface ArchiveChatParametersInterface
+  extends InstanceInterface,
+    Pick<SendingBaseParametersInterface, 'chatId'> {
+  archive: boolean;
+}
+
 // Green SendReaction: an empty reaction removes the sender's reaction.
 export interface SendReactionParametersInterface
   extends InstanceInterface,
@@ -767,4 +773,6 @@ export interface GetChatsResponseInterface {
   // only for WhatsApp for now
   unreadCount?: number;
   newChatId?: string;
+  // WhatsApp's own archive state (phone or archiveChat/unarchiveChat)
+  archive?: boolean;
 }

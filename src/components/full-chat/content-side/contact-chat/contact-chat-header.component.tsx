@@ -1,7 +1,7 @@
 import { FC, useMemo } from 'react';
 
-import { CloseOutlined, LeftOutlined } from '@ant-design/icons';
-import { Button, Flex } from 'antd';
+import { CloseOutlined, LeftOutlined, MoreOutlined } from '@ant-design/icons';
+import { Button, Dropdown, Flex } from 'antd';
 import { Header } from 'antd/es/layout/layout';
 import { useTranslation } from 'react-i18next';
 
@@ -11,10 +11,12 @@ import CallButton from 'components/shared/call-button.component';
 import AvatarImage from 'components/UI/avatar-image.component';
 import { FULL_CHAT_HISTORY_COUNT } from 'configs';
 import { useActions, useAppSelector, useMediaQuery } from 'hooks';
+import { useChatsSummary } from 'hooks/use-chats-summary.hook';
 import {
   useGetChatHistoryQuery,
   useGetChatsQuery,
   useLastMessagesQuery,
+  useSetChatArchiveMutation,
 } from 'services/green-api/endpoints';
 import { selectActiveChat, selectType } from 'store/slices/chat.slice';
 import { selectInstance, selectTypeInstance } from 'store/slices/instances.slice';
@@ -72,6 +74,12 @@ const ContactChatHeader: FC = () => {
     typeInstance === 'whatsapp' &&
     !isGroup &&
     (type === 'console-page' || type === 'instance-view-page');
+
+  // Chat menu: archive / unarchive on WhatsApp itself (the phone sees it too).
+  const { archivedChatIds } = useChatsSummary();
+  const [setChatArchive] = useSetChatArchiveMutation();
+  const isArchived = archivedChatIds.has(activeChat.chatId);
+  const showChatMenu = typeInstance === 'whatsapp';
 
   const isOfficial = isWhatsAppOfficialChat(activeChat.chatId);
   const isBotChat = isBotChatType(activeChat.chatType);
@@ -173,6 +181,27 @@ const ContactChatHeader: FC = () => {
           <span className="chat-header-phone" dir="ltr">
             {headerPhoneNumber}
           </span>
+        )}
+        {showChatMenu && (
+          <Dropdown
+            trigger={['click']}
+            menu={{
+              items: [
+                {
+                  key: 'archive',
+                  label: t(isArchived ? 'UNARCHIVE_CHAT' : 'ARCHIVE_CHAT'),
+                  onClick: () =>
+                    setChatArchive({
+                      ...instanceCredentials,
+                      chatId: activeChat.chatId,
+                      archive: !isArchived,
+                    }),
+                },
+              ],
+            }}
+          >
+            <Button type="text" icon={<MoreOutlined />} aria-label="menu" />
+          </Dropdown>
         )}
         {type !== 'one-chat-only' &&
           (isMobile ? (

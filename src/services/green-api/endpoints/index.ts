@@ -69,6 +69,7 @@ export const {
   useGetChatsQuery,
   useLazyGetChatsQuery,
   useReadChatMutation,
+  useSetChatArchiveMutation,
 } = {
   ...accountGreenApiEndpoints,
   ...sendingGreenApiEndpoints,

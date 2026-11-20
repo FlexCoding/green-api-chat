@@ -1,5 +1,6 @@
 import { GlobalOutlined, SettingOutlined } from '@ant-design/icons';
 
+import ArchiveIcon from 'assets/icons/archive.svg?react';
 import ChatIcon from 'assets/icons/chat.svg?react';
 import InstanceIcon from 'assets/icons/instance-icon.svg?react';
 import Chats from 'components/full-chat/user-side/chats/chats.component';
@@ -15,14 +16,17 @@ export const asideTopIconItems: (
   typeInstance: TypeInstance
 ) => (AsideItem | null)[] = (
   type,
-  // kept for upstream compatibility (used by the blocked Statuses/Contacts items)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   typeInstance
 ) => [
   type !== 'partner-iframe' && type !== 'one-chat-only'
     ? { item: 'instance', title: 'INSTANCE', icon: <InstanceIcon /> }
     : null,
   { item: 'chats', title: 'CHATS_TITLE', icon: <ChatIcon /> },
+  // Archive folder (upstream's commented bottom item, moved here because it needs
+  // typeInstance): WhatsApp-only, chats archived on the phone or from our chat menu.
+  typeInstance === 'whatsapp' && type !== 'one-chat-only'
+    ? { item: 'archive', title: 'ARCHIVE_TITLE', icon: <ArchiveIcon /> }
+    : null,
   // Fork: Statuses and Contacts tabs are blocked. Statuses = "update status" (blocked
   // since 31faf0e) plus every contact's status feed; Contacts = the instance's whole
   // address book. Both would bypass the middleware's per-user opportunity filter.
@@ -48,6 +52,7 @@ export const asideBottomIconItems: AsideItem[] = [
 
 export const USER_SIDE_ITEMS: UserSideItem[] = [
   { item: 'chats', element: <Chats /> },
+  { item: 'archive', element: <Chats archived /> },
   // { item: 'contacts', element: <Contacts /> }, // blocked in the fork (see above)
   { item: 'instance', element: <InstanceSettings /> },
   { item: 'profile', element: <Profile /> },
