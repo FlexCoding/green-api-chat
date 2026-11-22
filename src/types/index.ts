@@ -82,6 +82,10 @@ export interface InstancesState {
   isAuthorizingInstance: boolean;
   isSendingStatus: 'text' | 'voice' | 'media' | null;
   isLastMessagesSyncingAfterAuthorization: boolean;
+  // HappyFlow embed: the middleware's getGreen says the user has "show all chats"
+  // (wachat WhatsApp_View_All_Chats) - only then is "new chat" offered (HF-00024 item ד).
+  // Kept out of selectedInstance: that object is spread into every Green request.
+  canViewAllChats?: boolean;
 }
 
 export type TypeInstance = 'whatsapp' | 'v3' | 'telegram';

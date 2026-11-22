@@ -65,6 +65,7 @@ const initialState: InstancesState & { waSettings: GetWaSettingsResponseInterfac
   waSettings: null,
   isSendingStatus: null,
   isLastMessagesSyncingAfterAuthorization: false,
+  canViewAllChats: false,
   ...getInitialStateFromStorage(),
 };
 
@@ -130,6 +131,9 @@ export const instancesSlice = createSlice({
     ) => {
       state.isLastMessagesSyncingAfterAuthorization = action.payload;
     },
+    setCanViewAllChats: (state, action: PayloadAction<boolean>) => {
+      state.canViewAllChats = action.payload;
+    },
   },
 });
 
@@ -148,3 +152,5 @@ export const selectWaSettings = (state: RootState) => state.instancesReducer.waS
 export const selectIsSendingStatus = (state: RootState) => state.instancesReducer.isSendingStatus;
 export const selectIsLastMessagesSyncingAfterAuthorization = (state: RootState) =>
   state.instancesReducer.isLastMessagesSyncingAfterAuthorization;
+export const selectCanViewAllChats = (state: RootState) =>
+  !!state.instancesReducer.canViewAllChats;

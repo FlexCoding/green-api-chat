@@ -57,6 +57,7 @@ const BaseLayout: FC = () => {
     setPlatform,
     setActiveChat,
     setInstanceList,
+    setCanViewAllChats,
   } = useActions();
 
   const [getContactInfo] = useLazyGetContactInfoQuery();
@@ -339,12 +340,13 @@ const BaseLayout: FC = () => {
           return;
         }
 
-        const { idInstance } = credentials;
+        const { idInstance, canViewAllChats } = credentials;
 
         if (!idInstance) {
           message.error(t('UNKNOWN_ERROR'));
           return;
         }
+        setCanViewAllChats(canViewAllChats === true);
         // console.log('sessionId:', sessionId);
         // console.log('selectedInstance.sessionId:', selectedInstance.sessionId);
         // console.log('diffrent session:', (selectedInstance.sessionId !== sessionId));

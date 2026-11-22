@@ -10,6 +10,8 @@ interface GetGreenCredentialsParams {
 
 interface GetGreenCredentialsResponse {
   idInstance: number;
+  // the session's user has "show all chats" -> "new chat" is offered (HF-00024 item ד)
+  canViewAllChats?: boolean;
   // apiTokenInstance: string;
   // apiUrl: string;
   // mediaUrl: string;

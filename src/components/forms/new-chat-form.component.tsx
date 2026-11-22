@@ -22,6 +22,15 @@ import { GetChatsParametersInterface, GetChatsResponseInterface, NewChatFormValu
 import { getPhoneNumberFromChatId, isAuth } from 'utils';
 import { isLidChatId, splitChatId } from 'utils/chat-id.utils';
 
+// HappyFlow embed: a private WhatsApp chat by phone number only (no group / LID
+// ids, HF-00024 item ד). A local Israeli number (05XXXXXXXX) becomes 9725XXXXXXXX.
+const toPhoneChatId = (value: string) => {
+  const digits = value.replaceAll(/\D/g, '');
+  const international = /^0\d{8,9}$/.test(digits) ? `972${digits.slice(1)}` : digits;
+
+  return `${international}@c.us`;
+};
+
 interface NewChatFormProps {
   onSubmitCallback?: () => void;
 }
@@ -49,11 +58,13 @@ const NewChatForm: FC<NewChatFormProps> = ({ onSubmitCallback }) => {
   const responseTimerReference = useRef<number | null>(null);
 
   const standaloneChatTypes = ['partner-iframe', 'one-chat-only'];
+  const isPhoneOnly = type === 'partner-iframe' && !isMaxOrTelegram;
 
   const onSendMessage = async (values: NewChatFormValues) => {
     if (!isAuth(user) && !standaloneChatTypes.includes(type) && isChatWorking === false) return;
 
-    const { message, chatId, chatIdType } = values;
+    const { message, chatIdType } = values;
+    const chatId = isPhoneOnly ? toPhoneChatId(values.chatId) : values.chatId;
 
     if (responseTimerReference.current) {
       clearTimeout(responseTimerReference.current);
@@ -89,6 +100,9 @@ const NewChatForm: FC<NewChatFormProps> = ({ onSubmitCallback }) => {
         form.setFields([{ name: 'chatId', errors: [t('CHECK_WHATSAPP_QUOTE_REACHED')] }]);
 
         addNewChatInList = false;
+      } else if (error && isPhoneOnly) {
+        // our middleware refused (no view-all) or the check failed: never send blind
+        return form.setFields([{ name: 'chatId', errors: [t('UNKNOWN_ERROR')] }]);
       }
 
       if (data && !data.existsWhatsapp) {
@@ -263,7 +277,12 @@ const NewChatForm: FC<NewChatFormProps> = ({ onSubmitCallback }) => {
                   }
                 />
               ) : (
-                <ChatIdInput disabled={!isAuth} autoComplete="off" />
+                <ChatIdInput
+                  disabled={!isAuth}
+                  autoComplete="off"
+                  suffixes={isPhoneOnly ? [] : undefined}
+                  placeholder={isPhoneOnly ? t('CHAT_ID_PHONE_PLACEHOLDER') : undefined}
+                />
               )}
             </Form.Item>
           );
