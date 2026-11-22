@@ -125,6 +125,7 @@
   "GROUP_ALLOW_PARTICIPANTS_SEND_MESSAGE_HISTORY": "Участникам разрешено отправлять историю сообщений",
   "CANT_SEND_IN_GROUP": "Вы не можете отправлять сообщения в эту группу, так как больше не являетесь ее участником.",
   "CANT_SEND_ACCOUNT_INACTIVE": "Вы не можете отправлять сообщения на этот аккаунт, так как он больше не активен.",
+  "CANT_SEND_NO_WHATSAPP": "У этого номера нет WhatsApp. Отправить ему сообщение нельзя.",
   "GO_TO_NEW_CHAT": "В новый чат",
   "BUSINESS_ACCOUNT_DESC": "Это бизнес аккаунт",
   "LEFT_THE_GROUP_ALERT_MESSAGE": "Вы покинули группу",

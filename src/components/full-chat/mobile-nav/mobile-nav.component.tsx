@@ -6,7 +6,7 @@ import AsideItem from '../aside/aside-item.component';
 import { asideBottomIconItems, asideTopIconItems } from 'configs';
 import { useAppSelector, useMediaQuery } from 'hooks';
 import { selectActiveChat, selectType } from 'store/slices/chat.slice';
-import { selectTypeInstance } from 'store/slices/instances.slice';
+import { selectCanViewAllChats, selectTypeInstance } from 'store/slices/instances.slice';
 import type { AsideItem as AsideItemInterface } from 'types';
 
 const MobileNav: FC = () => {
@@ -14,6 +14,7 @@ const MobileNav: FC = () => {
 
   const type = useAppSelector(selectType);
   const typeInstance = useAppSelector(selectTypeInstance);
+  const canViewAllChats = useAppSelector(selectCanViewAllChats);
   const activeChat = useAppSelector(selectActiveChat);
 
   const isMobileLayout = useMediaQuery('(max-width: 975px)');
@@ -44,7 +45,7 @@ const MobileNav: FC = () => {
 
   if (!shouldRender) return null;
 
-  const items = [...asideTopIconItems(type, typeInstance), ...asideBottomIconItems].filter(
+  const items = [...asideTopIconItems(type, typeInstance, canViewAllChats), ...asideBottomIconItems].filter(
     (item): item is AsideItemInterface => !!item
   );
 

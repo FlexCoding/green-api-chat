@@ -7,7 +7,11 @@ import { useTranslation } from 'react-i18next';
 import ContactsList from './contacts-list.component';
 import { useActions, useAppSelector } from 'hooks';
 import { useGetContactsQuery } from 'services/green-api/endpoints';
-import { selectInstance, selectTypeInstance } from 'store/slices/instances.slice';
+import {
+  selectCanViewAllChats,
+  selectInstance,
+  selectTypeInstance,
+} from 'store/slices/instances.slice';
 
 const Contacts: FC = () => {
   const { t } = useTranslation();
@@ -16,11 +20,17 @@ const Contacts: FC = () => {
   const typeInstance = useAppSelector(selectTypeInstance);
   const isWhatsApp = typeInstance === 'whatsapp';
   const isTelegram = typeInstance === 'telegram';
+  // Fork: view-all users only (the aside hides the tab, the middleware refuses the
+  // methods); never even ask for the address book without the flag.
+  const canViewAllChats = useAppSelector(selectCanViewAllChats);
 
   const { openAddContactModal } = useActions();
 
   const skipGetContactsQuery =
-    !instanceCredentials?.idInstance || !instanceCredentials.sessionId || isTelegram;
+    !instanceCredentials?.idInstance ||
+    !instanceCredentials.sessionId ||
+    isTelegram ||
+    !canViewAllChats;
 
   const {
     isLoading: isContactsLoading,
@@ -35,6 +45,8 @@ const Contacts: FC = () => {
       skip: skipGetContactsQuery,
     }
   );
+
+  if (!canViewAllChats) return null;
 
   if (!instanceCredentials?.idInstance || !instanceCredentials.sessionId) {
     return (

@@ -19,6 +19,7 @@ export const {
   useLazyGetGroupDataQuery,
   useLazyGetContactInfoQuery,
   useCheckWhatsappMutation,
+  useCheckWhatsappForChatQuery,
   useCheckAccountMutation,
   useGetContactsQuery,
   useAddContactMutation,

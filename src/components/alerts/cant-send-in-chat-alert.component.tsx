@@ -6,11 +6,15 @@ import { useTranslation } from 'react-i18next';
 import { useActions, useAppSelector } from 'hooks';
 import { selectActiveChat } from 'store/slices/chat.slice';
 
-export type CantSendInChatReason = 'group' | 'inactive-account';
+export type CantSendInChatReason = 'group' | 'inactive-account' | 'no-whatsapp';
 
-const REASON_TRANSLATION_KEYS: Record<CantSendInChatReason, string> = {
-  group: 'CANT_SEND_IN_GROUP',
-  'inactive-account': 'CANT_SEND_ACCOUNT_INACTIVE',
+// Each reason may list fallbacks: a browser holding a cached older translation file
+// still gets a sentence instead of the bare key.
+const REASON_TRANSLATION_KEYS: Record<CantSendInChatReason, string[]> = {
+  group: ['CANT_SEND_IN_GROUP'],
+  'inactive-account': ['CANT_SEND_ACCOUNT_INACTIVE'],
+  // the number has no WhatsApp (HF-00024 item 3, useChatWithoutWhatsapp)
+  'no-whatsapp': ['CANT_SEND_NO_WHATSAPP', 'PHONE_DOES_NOT_HAVE_WHATSAPP'],
 };
 
 interface CantSendInChatAlertProps {

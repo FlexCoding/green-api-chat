@@ -135,7 +135,9 @@ export const serviceMethodsGreenApiEndpoints = greenAPI.injectEndpoints({
           patches.forEach((patch) => patch.undo());
         }
       },
-      invalidatesTags: ['contacts'],
+      // also the chat's contact info: the chat list names the chat from its contactName
+      invalidatesTags: (_result, error, { chatId }) =>
+        error ? [] : ['contacts', { type: 'contactInfo', id: chatId }],
     }),
     editContact: builder.mutation<Record<string, unknown>, EditContactParametersInterface>({
       query: ({ idInstance, instanceUrl, sessionId, orgId, ...body }) => ({
@@ -180,7 +182,9 @@ export const serviceMethodsGreenApiEndpoints = greenAPI.injectEndpoints({
           patches.forEach((patch) => patch.undo());
         }
       },
-      invalidatesTags: ['contacts'],
+      // also the chat's contact info: the chat list names the chat from its contactName
+      invalidatesTags: (_result, error, { chatId }) =>
+        error ? [] : ['contacts', { type: 'contactInfo', id: chatId }],
     }),
     deleteContact: builder.mutation<Record<string, unknown>, DeleteContactParametersInterface>({
       query: ({ idInstance, instanceUrl, sessionId, orgId, ...body }) => ({
@@ -219,7 +223,9 @@ export const serviceMethodsGreenApiEndpoints = greenAPI.injectEndpoints({
           patches.forEach((patch) => patch.undo());
         }
       },
-      invalidatesTags: ['contacts'],
+      // also the chat's contact info: the chat list names the chat from its contactName
+      invalidatesTags: (_result, error, { chatId }) =>
+        error ? [] : ['contacts', { type: 'contactInfo', id: chatId }],
     }),
     uploadFile: builder.mutation<
       Pick<SendFileByUrlParametersInterface, 'urlFile'>,
@@ -247,6 +253,22 @@ export const serviceMethodsGreenApiEndpoints = greenAPI.injectEndpoints({
         avatar: normalizeAvatarSrc(response.base64Avatar) || normalizeAvatarSrc(response.avatar),
       }),
       keepUnusedDataFor: 1000,
+      providesTags: (_result, _error, { chatId }) => [{ type: 'contactInfo', id: chatId }],
+    }),
+    // Existing chat: does its number have WhatsApp (HF-00024 item 3). A query, so each
+    // number is asked once and cached (Green rate-limits checkWhatsapp; the middleware
+    // caches too). Only for the private chat that is open - see useChatWithoutWhatsapp.
+    checkWhatsappForChat: builder.query<
+      CheckWhatsappResponseInterface,
+      CheckWhatsappParametersInterface
+    >({
+      query: ({ idInstance, instanceUrl, sessionId, orgId, phoneNumber }) => ({
+        url: `${MIDDLEWARE_URL}/checkWhatsapp`,
+        method: 'POST',
+        params: { instanceUrl, sessionId, orgId },
+        body: { phoneNumber },
+      }),
+      keepUnusedDataFor: 3600,
     }),
     deleteMessage: builder.mutation<void, GetChatInformationParameters>({
       query: ({ idInstance, instanceUrl, sessionId, orgId, ...body }) => ({

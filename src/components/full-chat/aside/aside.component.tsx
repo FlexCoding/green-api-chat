@@ -6,13 +6,15 @@ import AsideItem from './aside-item.component';
 import { asideBottomIconItems, asideTopIconItems } from 'configs';
 import { useAppSelector } from 'hooks';
 import { selectType } from 'store/slices/chat.slice';
-import { selectTypeInstance } from 'store/slices/instances.slice';
+import { selectCanViewAllChats, selectTypeInstance } from 'store/slices/instances.slice';
 
 const Aside: FC = () => {
   const type = useAppSelector(selectType);
   const typeInstance = useAppSelector(selectTypeInstance);
 
-  const items = asideTopIconItems(type, typeInstance);
+  const canViewAllChats = useAppSelector(selectCanViewAllChats);
+
+  const items = asideTopIconItems(type, typeInstance, canViewAllChats);
 
   return (
     <aside className="aside">

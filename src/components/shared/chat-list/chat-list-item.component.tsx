@@ -170,10 +170,13 @@ const ChatListItem: FC<ContactListItemProps> = ({
       break;
 
     default:
+      // Fork: the address-book name (getContactInfo.contactName) first, like WhatsApp
+      // itself - so a name saved in the Contacts tab (HF-00024 item 1) replaces the
+      // profile name / the name the old messages carry.
       chatName = getFirstNonEmptyString(
+        contactInfo?.contactName,
         lastMessage.senderContactName,
         lastMessage.senderName,
-        contactInfo?.contactName,
         contactInfo?.name,
         getPhoneNumberFromChatId(lastMessage.chatId)
       );

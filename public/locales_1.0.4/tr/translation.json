@@ -120,6 +120,7 @@
   "GROUP_ALLOW_PARTICIPANTS_SEND_MESSAGE_HISTORY": "Katılımcılar mesaj geçmişi gönderebilir",
   "CANT_SEND_IN_GROUP": "Artık üye olmadığınız için bu gruba mesaj gönderemezsiniz.",
   "CANT_SEND_ACCOUNT_INACTIVE": "Bu hesap artık aktif olmadığı için bu hesaba mesaj gönderemezsiniz.",
+  "CANT_SEND_NO_WHATSAPP": "Bu numaranın WhatsApp'ı yok. Bu numaraya mesaj gönderilemez.",
   "GO_TO_NEW_CHAT": "Yeni sohbete git",
   "BUSINESS_ACCOUNT_DESC": "Bu işletme hesabıdır",
   "LEFT_THE_GROUP_ALERT_MESSAGE": "Gruptan ayrıldınız",
